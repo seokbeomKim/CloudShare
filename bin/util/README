@@ -1,0 +1,4 @@
+CloudShare* util package
+
+1. IpChecker
+	자신의 public IP를 확인하는 클래스이다.

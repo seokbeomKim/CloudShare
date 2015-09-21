@@ -22,10 +22,12 @@ public class Message {
 		REQUEST_ATTACH_NEW_NODE,
 		REQUEST_FILE_UPLOAD,
 		REQUEST_FILE_DOWNLOAD,
+		REQUEST_FILE_LIST,
 	};
-	public static final String REQUEST_ATTACH_NEW_NODE = "attachnewnode";
-	public static final String REQUEST_FILE_UPLOAD = "upload";
-	public static final String REQUEST_FILE_DOWNLOAD = "download";
+	public static final String REQUEST_ATTACH_NEW_NODE	= "attachnewnode";
+	public static final String REQUEST_FILE_UPLOAD 		= "upload";
+	public static final String REQUEST_FILE_DOWNLOAD 	= "download";
+	public static final String REQUEST_FILE_LIST		= "filelist";
 	
 	
 	public static enum ANSWER_TYPE {
@@ -50,23 +52,23 @@ public class Message {
 	public static final String MESSAGE_SPLITTER 	= ";;";
 	
 	private MESSAGE_TYPE msgtype;
-	private MESSAGE_TARGET msgtarget;
+	private String msgtarget;
 	private Enum<?> msgdetail;
 	
 	private Object value;
 	
 	public Message() {}
 	
-	public Message(MESSAGE_TYPE msgtype, Enum<?> specific_type, MESSAGE_TARGET msgtarget) {
+	public Message(MESSAGE_TYPE msgtype, Enum<?> specific_type, String msgtarget) {
 		this.setMsgtype(msgtype);
 		this.setMsgtarget(msgtarget);
 		this.setValue(null);
 		this.setMsgdetail(specific_type);
 	}
 	
-	public Message(MESSAGE_TYPE msgtype, Enum<?> specific_type, MESSAGE_TARGET msgtarget, String[] value) {
+	public Message(MESSAGE_TYPE msgtype, Enum<?> specific_type, String target, String value) {
 		this.setMsgtype(msgtype);
-		this.setMsgtarget(msgtarget);
+		this.setMsgtarget(target);
 		this.setValue(value);
 		this.setMsgdetail(specific_type);
 	}
@@ -79,12 +81,12 @@ public class Message {
 		this.msgtype = msgtype;
 	}
 
-	public MESSAGE_TARGET getMsgtarget() {
+	public String getMsgtarget() {
 		return msgtarget;
 	}
 
-	public void setMsgtarget(MESSAGE_TARGET msgtarget) {
-		this.msgtarget = msgtarget;
+	public void setMsgtarget(String string) {
+		this.msgtarget = string;
 	}
 
 	public Enum<?> getMsgdetail() {
@@ -114,5 +116,14 @@ public class Message {
 			}
 		}
 		return false;
+	}
+
+	/*
+	 * TODO IPC 메세지로의 변환
+	 */
+	public IPCMessage toIPCMessage() {
+		IPCMessage r = new IPCMessage();
+		
+		return null;
 	}
 }

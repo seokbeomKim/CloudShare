@@ -8,7 +8,9 @@ import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Queue;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -36,7 +38,7 @@ public class OperationManager {
 	private final String TAG = "OperationManager";
 	
 	// IPC 통신 관련
-	private final int TIME_FOR_RETRY = 1000;	// 1 seconds
+	private final int latency = 500;	// 0.5 seconds
 	private final int PortNum_out = 7788;
 	private final int PortNum_in = 7789;
 	public Mutex lock;
@@ -44,6 +46,9 @@ public class OperationManager {
 	private Socket socket_out;
 	private ServerSocket listener;
 	private ServerSocket listener2;
+	
+	// 메세지 큐 (External Service로부터 수신된 메세지를 위한 큐)
+	private Queue<Message> msgQueue;
 
 	PrintWriter fd_out;
 	BufferedReader fd_in;	
@@ -61,6 +66,7 @@ public class OperationManager {
 	private String mountpoint;
 	
 	private OperationManager() {
+		setMsgQueue(new LinkedList<Message>());
 		setMountpoint(System.getenv("HOME") + File.separator + "CloudShare");
 	}
 	
@@ -69,6 +75,7 @@ public class OperationManager {
 	 * 
 	 * 디스크 파일의 정보를 읽고 DiskInfo 객체를 초기화한다.
 	 */
+	@SuppressWarnings("null")
 	private void private_opendisk(String path) {
 		DiskInfo diskInfo = DiskInfo.getInstance();
 		
@@ -122,44 +129,42 @@ public class OperationManager {
 	 * 소켓 연결을 만들고 FUSE-mounter와 소켓 통신을 한다.
 	 */
 	private void doSocketConnection() {
+		System.out.println("Waiting for new connection...");
 		try {
 			listener = new ServerSocket(PortNum_in);
 			listener2 = new ServerSocket(PortNum_out);
-			System.out.println("Waiting for new connection...");
 			socket_in = listener.accept();
 			socket_out = listener2.accept();
 			
 			System.out.println("Succeed to connect FUSE-mounter throughout SOCK");
-			
-			// 소켓 연결이 성공되면 클라이언트에서 CONNECTION CHECK REQUEST를 보낸다.
-			// 이에 서버에서는 다시 클라이언트로 ACK을 보낸다.
 			fd_out= new PrintWriter(socket_out.getOutputStream(), true);
 		    fd_in = new BufferedReader(
 		        new InputStreamReader(socket_in.getInputStream()));
 		    /*
-		     * 프로그램 종료때까지 Mounter 프로그램과 IPC;Socket 통신한다.
+		     * 프로그램 종료때까지 Mounter 프로그램과 IPC(Socket) 통신한다.
 		     * 통신 방식은 IPC message 타입을 먼저 보낸 뒤 FUSE-mounter에게 ACK을 보내면 
 		     * FUSE-mounter에서 해당 메세지에 대한 값을 보낸다. 값을 받은 뒤에는 수신완료에 대한
 		     * 확인으로 다시 ACK을 보낸다. 
 		     */
 		    while (true) {
-		    	// 메세지를 수신하고 처리한다.
-		    	
-		    	// lock이 false(unlock) 상태이면 OperationManager에 직접적인 사용이 없다는 뜻
-		    	// lock이 true (lock) 상태이면 ExternalService에 의해 제어가 되고 있다는 뜻
+				// FUSE-mounter 와의 통신
 				try {
-					receiveAndHandleMessage();
+					// FUSE-mounter로부터 메세지 확인 및 처리
+					HandleMessageFromFuseMounter();
+					// External Service로부터의 메세지 확인 및 처리
+					HandleMessageFromExternalService();
 				} catch (NullMessageException e1) {
 					// 메세지가 null인 경우 client가 종료되었거나 비정상적인 상태를 의미하므로 연결을 중지한다.
 					System.err.println("Guess the client has been halted. Close the connection");
 					break;
 				}
 				
-//		    	try {
-//					Thread.sleep(this.TIME_FOR_RETRY);
-//				} catch (InterruptedException e) {
-//					System.err.println("Error when doing sleep(TIME_FOR_RETRY)");
-//				}
+				// latency 설정
+		    	try {
+					Thread.sleep(latency);
+				} catch (InterruptedException e) {
+					System.err.println("Error when doing sleep(TIME_FOR_RETRY)");
+				}
 		    }
 		    
 		} catch (IOException e) {
@@ -181,46 +186,57 @@ public class OperationManager {
 	}
 	
 	/*
-	 * 메세지를 수신하고 처리한다.
+	 * Handle message from external service
+	 * 
+	 * External Service의 receiver는 외부클라이언트로부터 메세지를 받아 recvQueue에 메세지를
+	 * 저장한다. 이를 External Service의 handler에서 처리하게 되는데 FUSE Mounter와의 통신이
+	 * 필요할 경우에 OperationManager의 큐에 등록되게 된다. 해당 메서드에서는 큐를 검사하여 
+	 * 메세지 유무를 검사하고 처리하는 역할을 한다.
+	 */
+	private void HandleMessageFromExternalService() {
+		if (!msgQueue.isEmpty()) {
+			Debug.print(TAG, "HandleMessageFromExternalService", 
+					"Message queue is not empty! Do handle a message from external service");
+			Message msg = msgQueue.poll();
+			sendMessageToFuseMounter(msg.toIPCMessage());
+		}
+	}
+
+	/*
+	 * HandleMessageFromFuseMounter
+	 * 
+	 * FUSE-mounter로부터 메세지를 수신하고 처리한다.
 	 * FUSE-Mounter로부터 수신되는 메세지는 다음의 특징을 갖는다.
 	 * 메세지 타입 -> 메세지 값
 	 * 때문에 각각의 경우에 대해서 처리를 해준다.
 	 */
-	private void receiveAndHandleMessage() throws IOException, NullMessageException {
+	private void HandleMessageFromFuseMounter() throws IOException, NullMessageException {
     	String r = fd_in.readLine(); 
-    	Debug.print(TAG, "receiveAndHandleMessage", "Read meesage from client: " + r);
     	if (r == null) {
     		throw new NullMessageException();
     	}
-    	
     	// 메세지가 수신되면 메세지를 완성하여 처리한다.
-    	// 메세지 만드는 부분
     	Message request = new Message();
-    	if (r.compareTo(Message.MESSAGE_TOKEN) == 0) {
-    		String t = fd_in.readLine();
+    	if (r.compareTo(Message.MESSAGE_TOKEN) == 0) {	// 처음 수신된 메세지는 ::__:: 토큰
+    		// 메세지 타입 및 디테일 설정
+    		String t = fd_in.readLine();	
     		request.setMsgtype(discoverMessageType(t));
     		request.setMsgdetail(discoverMessageDetail(t, request.getMsgtype()));
     	}
+    	// 메세지 값 설정
     	request.setValue(fd_in.readLine().substring(2));
     	
     	if(fd_in.readLine().compareTo(Message.MESSAGE_TOKEN) == 0) {
-    		// 메세지가 제대로 전달된 것이라면
     		Debug.print(TAG, "receiveAndHandleMessage", "Complete to establish message for external service.");
-    		// ExternalService로 메세지 전송을 한다. 
-    		ExternalService.getInstance().send(request);
+    		// ExternalService의 SendQueue에 메세지를 등록한다. 
+    		try {
+				ExternalService.getInstance().getSendQMutex().acquire();
+	    		ExternalService.getSendQueue().add(request);
+	    		ExternalService.getInstance().getSendQMutex().release();
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
     	}
-//    	/// 수신된 메세지 종류에 대한 ACK을 보낸다.
-//    	sendACKtoClient(type, true);
-//    	
-//        // 2. 메세지 값을 전달받는다.
-//    	String value = socket_in.readLine();
-//    	Debug.print(TAG, "receiveAndHandleMessage", "Read meesage from client: " + value);
-//    	/// 수신된 메세지 값에 대한 ACK을 보낸다.
-//    	sendACKtoClient(value, false);
-//        
-//    	// 수신한 메세지를 처리한다.
-//    	IPCMessage ipc_msg = new IPCMessage(type, value);
-//    	this.handleMessage(ipc_msg);
 	}
 
 	private Enum<?> discoverMessageDetail(String t, MESSAGE_TYPE type) {
@@ -265,11 +281,13 @@ public class OperationManager {
 	}
 
 	/*
-	 * sendACKtoClient
+	 * sendACKtoClient(deprecated)
+	 * - method for debugging
 	 * @param type 메세지 종류 (IPCMessage type)
 	 * @param aboutType 메세지 종류에 대한 메세지에 대한 ACK일 경우 true, 값에 대한 ACK일 경우 false
 	 * type값에 따라 적절한 ACK을 클라이언트에게 보낸다.
 	 */
+	@SuppressWarnings("unused")
 	private void sendACKtoClient(String type, boolean aboutType) {
 		Debug.print(TAG, "sendACKtoClient", "Send ACK to client");
 		if (aboutType) {
@@ -300,7 +318,7 @@ public class OperationManager {
 	 * ACK을 따로 받지 않고 보내기만 한다. 
 	 * (ACK을 보내는 것이 아니다)
 	 */
-	private void sendMessage(IPCMessage msg) {
+	private void sendMessageToFuseMounter(IPCMessage msg) {
 		Debug.print(TAG, "sendMessage", "Message : " + msg.getType() + ", " + msg.getValue());
 		String value = msg.getType() + "::" + msg.getValue();
 		fd_out.println(value);
@@ -327,6 +345,13 @@ public class OperationManager {
 	 */
 	public static void OpenDisk(String path) {
 		getInstance().private_opendisk(path);	// 디스크 정보 초기화 
+	}
+	
+	/*
+	 * mount
+	 * 정해진 디렉토리에 마운트를 시도한다.
+	 */
+	public static void mount() {
 		getInstance().private_mount();			// FUSE 마운트
 	}
 	
@@ -341,7 +366,7 @@ public class OperationManager {
 
 	private void private_updateDisk(List filelist) {
 		IPCMessage msg = new IPCMessage(IPCMessage.REQUEST_REFRESH, filelist.toString());
-		sendMessage(msg);
+		sendMessageToFuseMounter(msg);
 	}
 
 	public String getMountpoint() {
@@ -350,6 +375,14 @@ public class OperationManager {
 
 	public void setMountpoint(String mountpoint) {
 		this.mountpoint = mountpoint;
+	}
+
+	public Queue<Message> getMsgQueue() {
+		return msgQueue;
+	}
+
+	public void setMsgQueue(Queue<Message> msgQueue) {
+		this.msgQueue = msgQueue;
 	}
 	
 }

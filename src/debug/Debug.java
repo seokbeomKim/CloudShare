@@ -14,6 +14,10 @@ public class Debug {
 	public boolean isEnabled() {
 		return enabled;
 	}
+	
+	public static boolean enabled() {
+		return getInstance().isEnabled();
+	}
 
 	/**
 	 * @param enabled the enabled to set

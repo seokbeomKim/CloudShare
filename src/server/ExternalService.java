@@ -1,15 +1,17 @@
 package server;
 
+import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Queue;
+
+import com.sun.corba.se.impl.orbutil.concurrent.Mutex;
 
 import debug.Debug;
 import disk.DiskInfo;
 import message.Message;
-import message.Message.BROADCAST_TYPE;
-import message.Message.MESSAGE_TARGET;
 import message.Message.MESSAGE_TYPE;
 import message.Message.REQUEST_TYPE;
 import message.MessageHandler;
@@ -20,68 +22,111 @@ import util.IpChecker;
 
 /*
  * 전체적인 시스템 구성
- * Operator와 ExternalService의 Sender가 하나의 쓰레드로,
+ * Operator와 ExternalService의 Sender가 하나의 쓰레드로, 
  * ExternalService와 Receiver가 하나의 쓰레드로 동작한다.
+ * 자세한 구성은 src/README 참조할 것 
  */
-public class ExternalService extends CSService {
-	private final String TAG = "ServerService";
+public class ExternalService {
+	private final String TAG = "ExternalService";
 	private static ExternalService instance;
 	public static ExternalService getInstance() {
 		if (instance == null) {
+			Debug.print("ExternalService", "getInstance", "Create new instance..");
 			instance = new ExternalService();
 		}
 		return instance;
 	}
 	
-	// 클라이언트 리스트 및 소켓통신 관련 
-
-	// 소켓 통신 관련
-	private ServerSocket listener;
+	// Sender와 Receiver를 위한 메세지 큐
+	public Queue<Message> mSendQueue;
+	public Queue<Message> mRecvQueue;
+	// 메세지큐 동기화를 위한 Mutex
+	private Mutex sendQMutex;	
+	private Mutex recvQMutex;	
+	
+	// External Service threads
+	// 1. Socket Listener: 외부 클라이언트와의 통신을 위한 소켓 등록 및 관리 
 	private final int portnum_es = 7799;	
-	// DiskInfo로부터 초기화한다.
-	private List<String> clientList;
-	private LinkedList<Socket> clientSocket;
-	private SocketListener sock_listener;
+	private List<String> clientList;	// 클라이언트 IP 주소 리스트 
+	private LinkedList<Socket> clientSocket;	// 클라이언트 소켓 리스트 
+	private SocketListener sock_listener;		// Socket listener thread
+	// 2. Message Receiver
+	MessageReceiver msg_receiver;
+	// 3. Message Sender
+	MessageSender msg_sender;
+	// 4. Message Handler
+	MessageHandler msg_handler;
 	
 	private ExternalService() {
-		msg_handler = new MessageHandler();
-		msg_receiver = new MessageReceiver();
-		msg_sender = new MessageSender();
+		/* 초기화 부분 */
+		// 메세지 큐 초기화
+		mSendQueue = new LinkedList<>();
+		mRecvQueue = new LinkedList<>();
+		sendQMutex = new Mutex();
+		recvQMutex = new Mutex();
+		// 메세지 handler, receiver, sender 초기화
+		msg_handler		= MessageHandler.getInstance();
+		msg_receiver	= MessageReceiver.getInstance();
+		msg_sender		= MessageSender.getInstance();
+		// 클라이언트 IP주소 리스트, 소켓 리스트 초기
 		setClientSocket(new LinkedList<>());
-		
 		setClientList(DiskInfo.getInstance().getClients());
 
-		// 처음 실행 시, 디스크파일의 정보를 통해 ExternalService에 클라이언트들에 대한 소켓을
-		// 초기화한다. **연결 구성**
-		// 먼저 소켓서버 리스너를 실행한다.
-		sock_listener = new SocketListener();
-		sock_listener.start();
+		/* 실행 부분 */
+		// 1. Socket Listener
+		if (sock_listener == null) {
+			sock_listener = new SocketListener();
+			sock_listener.start();
+		}
+		
+		// 디스크의 생성자를 확인하여 자기 자신인지 아닌지 확인한다.
+		// 디스크 생성자가 아닌 경우에는 해당 클라이언트와의 통신을 위한 소켓을 생성하여 리스트에 추가한다.
+		// 중요한 것은 디스크 생성자라고 특별해지는 것이 없다. 다만 클라이언트 리스트에 디스크 생성자가 추가되느냐 아니냐가 달라질 뿐이다.
+		try {
+			if (DiskInfo.getInstance().getDiskip().compareTo(IpChecker.getPublicIP()) != 0) {
+				// 디스크 생성자가 아닌 경우 클라이언트 리스트에 추가
+				Debug.print(TAG, "ExternalService", "You are not disk creator.");
+				createSocketFromDiskIP();
+			}
+			else {
+				Debug.print(TAG, "ExternalService", "You are disk creater.");
+			}
+		} catch (NullPointerException e) {
+			Debug.print(TAG, "ExternalService", "Please check your IP configuration.. Maybe you need to run virtualbox.");
+			e.printStackTrace();
+		}
+		
 		// 이 후, 디스크 파일 정보를 통해 각 클라이언트들에게 클라이언트로써 접속한다.
 		createSocketFromClientList();
+	}
+	
+	/*
+	 * ExternalService가 생성될 때 쓰레드를 동시에 생성하면 쓰레드문제가 발생할 수 있기 때문에
+	 * 쓰레드 실행을 인스턴스가 충분히 생성된 뒤로 미룬다.
+	 */
+	public void postInitialize() {
+		// 2.3.4. 메세지 handler, sender, receiver 실행
+		msg_sender.start();
+		msg_receiver.start();
+		msg_handler.start();
 		
-		/* 
-		 * ExternalService는 util/DiskOpener에서 디스크 파일을 열었을 때 생성되어 실행된다. 
-		 * 생성자에서는 디스크파일에 있는 호스트 및 클라이언트 목록의 IP들에게 노드 attach를 위한 
-		 * 요청을 "순차적으로" 보내고 새로운 노드의 발견을 위해 전체 클라이언트들에게 새로운 노드의
-		 * 생성을 알린다.
-		 */
-		
-		// 클라이언트 리스트를 통해 Attach 요청
+		// ExternalService는 util/DiskOpener에서 디스크 파일을 열었을 때 생성되어 실행된다. 
+		// 생성자에서는 디스크파일에 있는 호스트 및 클라이언트 목록의 IP들에게 노드 attach를 위한 
+		// 요청을 "순차적으로" 보내고 새로운 노드의 발견을 위해 전체 클라이언트들에게 새로운 노드의
+		// 생성을 알린다.		
+		// 클라이언트 리스트를 통해 Attach 요청 (메세지 송신)
 		requestAttachMe();
-		
-		// 요청이 완료되면 새로운 노드에 대한 정보를 Broadcasting한다.
-		// Broadcasting을 받은 클라이언트들은 자신의 파일 정보와 클라이언트 정보를 해당 클라이ᅟ언트에게 
-		// 전송해준다.
-		String[] v = new String[2];
-		v[0] = DiskInfo.getInstance().getDiskip();	// 누구에게
-		v[1] = IpChecker.getPublicIP().toString(); // 무엇을 
-		Message broadcast_new_node = new Message(
-				MESSAGE_TYPE.BROADCAST,						// Broadcast 타입의 
-				BROADCAST_TYPE.BROADCAST_NEW_NODE_APPEARED, 	// 새로운 노드 출현 이벤트를
-				MESSAGE_TARGET.TARGET_ANYONE,					// 누구에게나 전달 
-				v												// disk ip와 현재 클라이언트의 ip와 함께
-				);
-		send(broadcast_new_node);
+	}
+
+	private void createSocketFromDiskIP() {
+		try {
+			Socket s = new Socket(DiskInfo.getInstance().getDiskip(), getPortnum_es());
+			clientSocket.add(s);
+		} catch (Exception e) {
+			// 소켓 연결에 실패
+			Debug.print(TAG, "createSocketFromDiskIP", "Failed to add socket from disk information : " +  
+						DiskInfo.getInstance().getDiskip());
+		}
 	}
 
 	/*
@@ -102,80 +147,62 @@ public class ExternalService extends CSService {
 
 	/*
 	 * requestAttachMe
+	 * 
 	 * 클라이언트 리스트 (ip, clients in DiskInfo)를 통해서 적절한 네트워크 모델을 형성하도록 
 	 * (loop가 발생하지 않는) 클라이언트에게 요청한다.
+	 * 어떠한 다른 요청보다도 "우선적으로" 네트워크에 노드로써 구성이 완료되어야 한다.
 	 */
 	private void requestAttachMe() {
-		String[] v = new String[2];
+		Debug.print(TAG, "requestAttachMe", "Try to send message... ");
 		
 		for (int i = 0; i < getClientList().size(); i++) {
-			v[0] = getClientList().get(i);
-			v[1] = IpChecker.getPublicIP();
-			
 			Message request_attach_me = new Message(
 					MESSAGE_TYPE.REQUEST,
 					REQUEST_TYPE.REQUEST_ATTACH_NEW_NODE,
-					MESSAGE_TARGET.TARGET_ANYONE,
-					v
-					);
+					getClientList().get(i),
+					IpChecker.getPublicIP()
+					); 
+			Debug.print(TAG, "requestAttachMe", "target = " + getClientList().get(i));
 			send(request_attach_me);
 		}
 	}
-
-	@Override
-	public void run() {
-		while (true) {
-			try {
-				/*
-				 * IMPORTANT
-				 * External Service에서 Operator로 명령을 주어 디버그 하는 부분
-				 */
-				Thread.sleep(1000);
-				if (msg_receiver.hasMessage()) {
-					msg_handler.handle(msg_receiver.poll());
-				}
-			} catch (InterruptedException e) {
-				e.printStackTrace();
+	
+	/*
+	 * getClientSocketWithIpAddr
+	 * 클라이언트 리스트로부터 IP주소가 일치하는 것을 찾아 해당 소켓을 리턴해준다.
+	 * 실패할 경우에는 null 리턴
+	 */
+	public static Socket getClientSocketWithIpAddr(String ipaddr) {
+		for (int i = 0; i < getInstance().clientSocket.size(); i++) {
+			if (getInstance().clientSocket.get(i).getInetAddress().
+					getHostAddress().
+					compareTo(ipaddr) == 0) {
+				return getInstance().clientSocket.get(i);
 			}
 		}
+		return null;
 	}
 
-	public void receive(Message msg) {
-		Debug.print(TAG, "receive", "Server service received message.");
-		msg_receiver.receive(msg);
-	}
-
-	// TODO send부분 구현 (ExternalService끼리 통신)
-	@Override
+	/*
+	 * send
+	 * Add message to mSendQueue
+	 */
 	public void send(Message msg) {
 		Debug.print(TAG, "receive", "Server service sends message.");
-		msg_sender.send(msg);
+		mSendQueue.add(msg);
 	}
 
-	@Override
 	public void handle(Message msg) {
 		Debug.print(TAG, "receive", "Server service handles message.");
 		msg_handler.handle(msg);
-	}
-
-	public static void startService() {
-		getInstance().start();
 	}
 
 	public List<String> getClientList() {
 		return clientList;
 	}
 
-	public void setClientList(List<String> clientList) {
-		this.clientList = clientList;
-	}
-
-	public ServerSocket getListener() {
-		return listener;
-	}
-
-	public void setListener(ServerSocket listener) {
-		this.listener = listener;
+	public void setClientList(List<String> list) {
+		this.clientList = list;
 	}
 
 	public int getPortnum_es() {
@@ -188,5 +215,72 @@ public class ExternalService extends CSService {
 
 	public void setClientSocket(LinkedList<Socket> clientSocket) {
 		this.clientSocket = clientSocket;
+	}
+
+	/*
+	 * addClientSocket
+	 * 클라이언트의 새로운 소켓을 리스트에 추가한다.
+	 * 이 때 해당 소켓이 중복되는지 아닌지 확인하여 중복되면 기존에 등록되어 있던 소켓을 삭제하고
+	 * 새로이 등록을 한다.
+	 */
+	public void addClientSocket(Socket s) {
+		// 중복 확인
+		for (int i = 0; i < this.clientSocket.size(); i++) {
+			if (this.clientSocket.get(i).getInetAddress().getHostAddress().compareTo(
+					s.getInetAddress().getHostAddress()) == 0) {
+				// 중복되는 것이 있다면 삭제
+				Debug.print(TAG, "addClientSocket", "Duplicated client sent connection request..."
+						+ "remove the socket from the list");
+				this.clientSocket.remove(i);
+				break;
+			}
+		}
+		
+		// 소켓 등록
+		this.clientSocket.add(s);
+	}
+
+	public static void startService() {
+		// 단순히 ExternalService 인스턴스가 제대로 초기화 되어있는지 확인하고 
+		// 나머지 쓰레드를 확인한다.
+		if (!checkInstance()) {
+			System.err.println("External Service instance does not exist yet. Do initialize again..");
+			ExternalService.getInstance().postInitialize();
+		}
+	}
+	
+	private static boolean checkInstance() {
+		return instance == null ? false : true;
+	}
+
+	public static Mutex sendMutex() {
+		return getInstance().getSendQMutex();
+	}
+	
+	public Mutex getSendQMutex() {
+		return sendQMutex;
+	}
+
+	public void setSendQMutex(Mutex sendQMutex) {
+		this.sendQMutex = sendQMutex;
+	}
+
+	public static Mutex recvMutex() {
+		return getInstance().getRecvQMutex();
+	}
+	public Mutex getRecvQMutex() {
+		return recvQMutex;
+	}
+
+	public void setRecvQMutex(Mutex recvQMutex) {
+		this.recvQMutex = recvQMutex;
+	}
+	
+	public static Queue<Message> getRecvQueue() {
+		return getInstance().mRecvQueue;
+	}
+	
+	public static Queue<Message> getSendQueue() {
+		return getInstance().mSendQueue;
 	}
 }

@@ -1,0 +1,27 @@
+==============================================================
+OperationManager = Operator
+==============================================================
+FUSE Mounter와의 소켓 통신을 담당하며 동시에 External Service와의
+브릿지 역할을 한다.
+
+1. Overview
+ +----------------------------------+
+ | Operation Manager                |
+ +----------------------------------+
+ | +------------------------------+ |
+ | | Message Queue                | |
+ | +------------------------------+ |
+ | HandleMessageFromFuseMounter     |
+ | HandleMessageFromExternalService |
+ |                                  |
+ +----------------------------------+
+
+1. 위의 Message Queue는 External Service 의 receiver로부터 등록된 메세지가
+등록되는 부분이다.
+
+2. HandleMessageFrom* 메서드에서도 알 수 있듯이, Operation Manager는
+Fuse Mounter로부터의 메세지를 수신하여 처리하고 다음에는 External Service로부터의
+메세지를 검사하여 처리하는 역할을 한다.
+
+
+   

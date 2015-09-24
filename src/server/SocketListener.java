@@ -41,6 +41,7 @@ public class SocketListener extends Thread {
 		try {
 			while (true) {
 				try {
+					Debug.print(TAG, "run", "Waiting new socket request...");
 					Socket socket = s.accept();
 					Debug.print(TAG, "run", "Succeed to get new socket instance");
 					addClientSocket(socket);
@@ -55,9 +56,19 @@ public class SocketListener extends Thread {
 	}
 	
 	/*
-	 * addClientSocket: 새로운 소켓을 clientsocket리스트에 ExternalService을 통해 추가한다.
+	 * addClientSocket: 
+	 * 1. 새로운 소켓을 clientsocket리스트에 ExternalService을 통해 추가한다.
+	 * 2. 소켓의 IP 주소를 clientList에 추가한ㄷ.
 	 */
 	private void addClientSocket(Socket s) {
-		ExternalService.getInstance().addClientSocket(s);
+		try {
+			ExternalService.getInstance().getMutexClSockets().acquire();
+			ExternalService.getInstance().addClientSocket(s);
+			ExternalService.getInstance().getMutexClSockets().release();
+			
+			ExternalService.getInstance().getClientList().add(s.getInetAddress().getHostAddress());
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
 	}
 }

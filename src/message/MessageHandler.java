@@ -1,6 +1,10 @@
 package message;
 
 import debug.Debug;
+import message.Message.MESSAGE_DETAIL;
+import message.Message.MESSAGE_TYPE;
+import message.Message.WHAT;
+import message.handler.RequestHandler;
 import server.ExternalService;
 
 /*
@@ -10,6 +14,8 @@ import server.ExternalService;
  */
 public class MessageHandler extends Thread {
 	private final String TAG = "MessageHandler";
+	RequestHandler reqHandler = new RequestHandler();
+	
 	private static MessageHandler instance = null;
 	public static MessageHandler getInstance() {
 		if (instance == null) {
@@ -21,10 +27,46 @@ public class MessageHandler extends Thread {
 	// 메세지 큐 감시 속도
 	private long latency = 500;
 	
-	// 
+	// 메세지 처리하는 부분
 	public void handle(Message msg)
 	{
 		Debug.print(TAG, "handle", "Handle message");
+		switch (msg.getType()) {
+		case MESSAGE_TYPE.REQUEST:
+			handle_request(msg);
+			break;
+		case MESSAGE_TYPE.ANSWER:
+			handle_answer(msg);
+			break;
+		case MESSAGE_TYPE.BROADCAST:
+			handle_broadcast(msg);
+			break;
+		default:
+			System.err.println("Unknown message type");
+		}
+	}
+	
+	// TODO handle_request
+	private void handle_request(Message msg) {
+		Debug.print(TAG, "handle_request", "Request type message");
+
+		// Request "attach new node"
+		// 클라이언트가 프로그램 실행을 통해 네트워크에 새로 접속시에 클라이언트에게 노드 자리를 요청하는 메세지
+		if (Message.is(WHAT.DETAIL, msg.getDetail(), MESSAGE_DETAIL.REQUEST_ATTACH_NEW_NODE)) {
+			reqHandler.attachNewNode(msg);
+		}
+	}
+	
+	// TODO handle_answer
+	private void handle_answer(Message msg) {
+		Debug.print(TAG, "handle_answer", "Answer type message");
+		
+	}
+	
+	// TODO handle_broadcast
+	private void handle_broadcast(Message msg) {
+		Debug.print(TAG, "handle_broadcast", "Broadcast type message");
+
 	}
 	
 	@Override

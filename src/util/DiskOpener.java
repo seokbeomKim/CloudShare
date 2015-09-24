@@ -3,9 +3,6 @@ package util;
 import java.io.File;
 
 import debug.Debug;
-import message.Message;
-import message.Message.MESSAGE_TARGET;
-import message.Message.MESSAGE_TYPE;
 import operation.OperationManager;
 import server.ExternalService;
 
@@ -39,6 +36,10 @@ public class DiskOpener {
 			
 			// 파일이 존재하는 경우에는 파일의 내용을 통해서 환경변수를 설정한다. 			
 			setDisk_path(f.getAbsolutePath());
+			
+			// ShutdownHooker 실행
+			// (종료 이벤트 처리용)
+//			Runtime.getRuntime().addShutdownHook(new ShutdownHooker());
 			
 			// OperationManager를 통해 OpenDisk를 호출한다.
 			// OperationManager가 메인 쓰레드로 실행되고 external service는 

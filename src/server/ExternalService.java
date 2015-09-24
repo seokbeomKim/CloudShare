@@ -1,8 +1,8 @@
 package server;
 
 import java.io.IOException;
-import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
@@ -10,14 +10,14 @@ import java.util.Queue;
 import com.sun.corba.se.impl.orbutil.concurrent.Mutex;
 
 import debug.Debug;
+import debug.MyConstants;
 import disk.DiskInfo;
 import message.Message;
+import message.Message.MESSAGE_DETAIL;
 import message.Message.MESSAGE_TYPE;
-import message.Message.REQUEST_TYPE;
 import message.MessageHandler;
 import message.MessageReceiver;
 import message.MessageSender;
-import util.CSService;
 import util.IpChecker;
 
 /*
@@ -49,6 +49,7 @@ public class ExternalService {
 	private final int portnum_es = 7799;	
 	private List<String> clientList;	// 클라이언트 IP 주소 리스트 
 	private LinkedList<Socket> clientSocket;	// 클라이언트 소켓 리스트 
+	private Mutex mutexClSockets;
 	private SocketListener sock_listener;		// Socket listener thread
 	// 2. Message Receiver
 	MessageReceiver msg_receiver;
@@ -57,21 +58,25 @@ public class ExternalService {
 	// 4. Message Handler
 	MessageHandler msg_handler;
 	
+	// 네트워크 상에서의 부모, 자식 클라이언트 링크
+	private Socket pClient, lClient, rClient;
+	
 	private ExternalService() {
 		/* 초기화 부분 */
 		// 메세지 큐 초기화
 		mSendQueue = new LinkedList<>();
 		mRecvQueue = new LinkedList<>();
 		sendQMutex = new Mutex();
-		recvQMutex = new Mutex();
-		// 메세지 handler, receiver, sender 초기화
-		msg_handler		= MessageHandler.getInstance();
-		msg_receiver	= MessageReceiver.getInstance();
-		msg_sender		= MessageSender.getInstance();
+		recvQMutex = new Mutex();		
 		// 클라이언트 IP주소 리스트, 소켓 리스트 초기
 		setClientSocket(new LinkedList<>());
+		setMutexClSockets(new Mutex());
 		setClientList(DiskInfo.getInstance().getClients());
-
+		// 클라이언트 링크 null로 초기화
+		pClient = null;
+		lClient = null;
+		rClient = null;
+		
 		/* 실행 부분 */
 		// 1. Socket Listener
 		if (sock_listener == null) {
@@ -86,7 +91,7 @@ public class ExternalService {
 			if (DiskInfo.getInstance().getDiskip().compareTo(IpChecker.getPublicIP()) != 0) {
 				// 디스크 생성자가 아닌 경우 클라이언트 리스트에 추가
 				Debug.print(TAG, "ExternalService", "You are not disk creator.");
-				createSocketFromDiskIP();
+				addDiskAddrToList();
 			}
 			else {
 				Debug.print(TAG, "ExternalService", "You are disk creater.");
@@ -94,9 +99,10 @@ public class ExternalService {
 		} catch (NullPointerException e) {
 			Debug.print(TAG, "ExternalService", "Please check your IP configuration.. Maybe you need to run virtualbox.");
 			e.printStackTrace();
+			System.exit(MyConstants.NEED_TO_RUN_VIRTUALBOX);
 		}
 		
-		// 이 후, 디스크 파일 정보를 통해 각 클라이언트들에게 클라이언트로써 접속한다.
+		// 디스크 파일 정보를 통해 각 클라이언트들에게 클라이언트로써 접속한다.
 		createSocketFromClientList();
 	}
 	
@@ -105,6 +111,10 @@ public class ExternalService {
 	 * 쓰레드 실행을 인스턴스가 충분히 생성된 뒤로 미룬다.
 	 */
 	public void postInitialize() {
+		// 메세지 handler, receiver, sender 초기화
+		msg_handler		= MessageHandler.getInstance();
+		msg_receiver	= MessageReceiver.getInstance();
+		msg_sender		= MessageSender.getInstance();
 		// 2.3.4. 메세지 handler, sender, receiver 실행
 		msg_sender.start();
 		msg_receiver.start();
@@ -118,13 +128,12 @@ public class ExternalService {
 		requestAttachMe();
 	}
 
-	private void createSocketFromDiskIP() {
+	private void addDiskAddrToList() {
 		try {
-			Socket s = new Socket(DiskInfo.getInstance().getDiskip(), getPortnum_es());
-			clientSocket.add(s);
+			clientList.add(DiskInfo.getInstance().getDiskip());
 		} catch (Exception e) {
-			// 소켓 연결에 실패
-			Debug.print(TAG, "createSocketFromDiskIP", "Failed to add socket from disk information : " +  
+			// 리스트 추가 실패
+			Debug.print(TAG, "addDiskAddrToList", "Failed to add disk ip address to list: " +  
 						DiskInfo.getInstance().getDiskip());
 		}
 	}
@@ -154,11 +163,13 @@ public class ExternalService {
 	 */
 	private void requestAttachMe() {
 		Debug.print(TAG, "requestAttachMe", "Try to send message... ");
+		Debug.print(TAG, "requestAttachMe", "You have " + getClientList().size() + " clients.");
 		
 		for (int i = 0; i < getClientList().size(); i++) {
 			Message request_attach_me = new Message(
 					MESSAGE_TYPE.REQUEST,
-					REQUEST_TYPE.REQUEST_ATTACH_NEW_NODE,
+					MESSAGE_DETAIL.REQUEST_ATTACH_NEW_NODE,
+					IpChecker.getPublicIP(),
 					getClientList().get(i),
 					IpChecker.getPublicIP()
 					); 
@@ -204,6 +215,19 @@ public class ExternalService {
 	public void setClientList(List<String> list) {
 		this.clientList = list;
 	}
+	
+	// 클라이언트 리스트 관련 메서드
+	public void addNewClientWithIPAddr(String ip) {
+		clientList.add(ip);
+	}
+	
+	public void removeClientWithIPAddr(String ip) {
+		for (int i = 0; i < clientList.size(); i++) {
+			if (clientList.get(i).compareTo(ip) == 0) {
+				clientList.remove(i);
+			}
+		}
+	}
 
 	public int getPortnum_es() {
 		return portnum_es;
@@ -228,6 +252,8 @@ public class ExternalService {
 		for (int i = 0; i < this.clientSocket.size(); i++) {
 			if (this.clientSocket.get(i).getInetAddress().getHostAddress().compareTo(
 					s.getInetAddress().getHostAddress()) == 0) {
+				Debug.print(TAG, "addClientSocket", "Compare ip address between " + clientSocket.get(i) + " and " + 
+					s.getInetAddress().getHostAddress());
 				// 중복되는 것이 있다면 삭제
 				Debug.print(TAG, "addClientSocket", "Duplicated client sent connection request..."
 						+ "remove the socket from the list");
@@ -282,5 +308,104 @@ public class ExternalService {
 	
 	public static Queue<Message> getSendQueue() {
 		return getInstance().mSendQueue;
+	}
+
+	public Mutex getMutexClSockets() {
+		return mutexClSockets;
+	}
+
+	public void setMutexClSockets(Mutex mutexClSockets) {
+		this.mutexClSockets = mutexClSockets;
+	}
+
+	/*
+	 * 현재 클라이언트 네트워크 노드 연결에서 attach가능한 자리가 있는지 확인한다.
+	 */
+	public static boolean nodeAttachAble() {
+		boolean r = false;
+		if (getInstance().pClient == null || 
+				getInstance().lClient == null || 
+				getInstance().rClient == null) {
+			r = true;
+		}
+		return r;
+	}
+
+	public Socket getrClient() {
+		return rClient;
+	}
+
+	public void setrClient(Socket rClient) {
+		this.rClient = rClient;
+	}
+
+	public Socket getlClient() {
+		return lClient;
+	}
+
+	public void setlClient(Socket lClient) {
+		this.lClient = lClient;
+	}
+
+	public Socket getpClient() {
+		return pClient;
+	}
+
+	public void setpClient(Socket pClient) {
+		this.pClient = pClient;
+	}
+
+	/*
+	 * attach 시에 현재 다른 곳에 똑같은 노드가 연결되는지도 확인해야한다.
+	 */
+	public static void attachNode(Socket clientSocketWithIpAddr) {
+		// 먼저 중복연결을 확인한다.
+		if (getInstance().pClient.getInetAddress().getHostAddress().compareTo(
+				clientSocketWithIpAddr.getInetAddress().getHostAddress()) == 0 ||
+				getInstance().lClient.getInetAddress().getHostAddress().compareTo(
+				clientSocketWithIpAddr.getInetAddress().getHostAddress()) == 0 ||
+				getInstance().rClient.getInetAddress().getHostAddress().compareTo(
+						clientSocketWithIpAddr.getInetAddress().getHostAddress()) == 0) {
+			return;
+		}
+		
+		if (getInstance().pClient == null) {
+			getInstance().pClient = clientSocketWithIpAddr;
+		}
+		else if (getInstance().lClient == null) {
+			getInstance().lClient = clientSocketWithIpAddr;
+		}
+		else if (getInstance().rClient == null) {
+			getInstance().rClient = clientSocketWithIpAddr;
+		}
+		else {
+			System.err.println("Failed to attach node. There is no attachable place for new client.");
+		}
+	}
+
+	/*
+	 * 네트워크 상에서 직접적으로 연결되어 있는 클라이언트 노드들에게 메세지를 보낸다.
+	 * (parent, child * 2)
+	 */
+	public static void sendMessageToFamily(Message msg) {
+		// TODO sendMessageToFamily
+		
+	}
+
+	/*
+	 * 네트워크 상에서 직접적으로 연결되어 있는 자식 노드 레벨의 클라이언트에게 메세지 전달
+	 */
+	public static void sendMessageToChildren(Message msg) {
+		if (getInstance().lClient != null) {
+			msg.setTo(getInstance().lClient.getInetAddress().getHostAddress());
+			getInstance().send(msg);
+		}
+		else if (getInstance().rClient != null) {
+			msg.setTo(getInstance().rClient.getInetAddress().getHostAddress());
+			getInstance().send(msg);
+		}
+		else {
+			System.err.println("There is nothing to transfer message.");
+		}
 	}
 }

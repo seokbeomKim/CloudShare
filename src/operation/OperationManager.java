@@ -220,8 +220,8 @@ public class OperationManager {
     	if (r.compareTo(Message.MESSAGE_TOKEN) == 0) {	// 처음 수신된 메세지는 ::__:: 토큰
     		// 메세지 타입 및 디테일 설정
     		String t = fd_in.readLine();	
-    		request.setMsgtype(discoverMessageType(t));
-    		request.setMsgdetail(discoverMessageDetail(t, request.getMsgtype()));
+    		request.setType(t);
+    		request.setDetail(request.getType());
     	}
     	// 메세지 값 설정
     	request.setValue(fd_in.readLine().substring(2));
@@ -238,48 +238,6 @@ public class OperationManager {
 			}
     	}
 	}
-
-	private Enum<?> discoverMessageDetail(String t, MESSAGE_TYPE type) {
-		String[] s = t.split("_");
-		if (type == MESSAGE_TYPE.REQUEST) {
-			if (s[1] == Message.REQUEST_FILE_DOWNLOAD) {
-				return Message.REQUEST_TYPE.REQUEST_FILE_DOWNLOAD;
-			}
-			else if (s[1] == Message.REQUEST_FILE_UPLOAD) {
-				return Message.REQUEST_TYPE.REQUEST_FILE_UPLOAD;
-			}
-			else if (s[1] == Message.REQUEST_ATTACH_NEW_NODE) {
-				return Message.REQUEST_TYPE.REQUEST_ATTACH_NEW_NODE;
-			}
-		}
-		else if (type == MESSAGE_TYPE.BROADCAST) {
-			
-		}
-		else if (type == MESSAGE_TYPE.ANSWER) {
-			
-		}
-		// Failed to figure message detail.
-		return null;
-	}
-
-	/*
-	 * 입력받은 메세지로부터 메세지 종류를 알아낸다.
-	 * 파라미터 t 의 형식은 request_filelist 
-	 */
-	private MESSAGE_TYPE discoverMessageType(String t) {
-		String[] s = t.split("_");
-		if (s[0].compareTo("request") == 0) {
-			return MESSAGE_TYPE.REQUEST;
-		}
-		else if (s[0].compareTo("answer") == 0) {
-			return MESSAGE_TYPE.ANSWER;
-		}
-		else if (s[0].compareTo("broadcast") == 0) {
-			return MESSAGE_TYPE.BROADCAST;
-		}
-		return MESSAGE_TYPE.NONE;	// error
-	}
-
 	/*
 	 * sendACKtoClient(deprecated)
 	 * - method for debugging

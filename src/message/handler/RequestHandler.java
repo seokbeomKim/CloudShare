@@ -1,5 +1,9 @@
 package message.handler;
 
+import java.util.LinkedList;
+import java.util.List;
+
+import debug.Debug;
 import message.Message;
 import message.Message.MESSAGE_DETAIL;
 import message.Message.MESSAGE_TYPE;
@@ -8,32 +12,39 @@ import util.IpChecker;
 
 /*
  * Request 메세지를 처리하는 클래스
+ * MessageHandler에서 메세지를 처리하지 않고 어떠한 타입인지 확인한 뒤 
+ * RequestHandler의 적절한 메서드를 호출하도록 설계되었다.
  */
 public class RequestHandler {
-
-	public void attachNewNode(Message msg) {
-		/*
-		 * attachNewNode request 메세지를 처리한다.
-		 * 
-		 * 해당 클라이언트에게 attach할 수 있는지 확인하고 가능하면 Answer을,
-		 * 가능하지 않다면 현재 연결되어 있는 자식노드들에게 메세지를 전달한다.
-		 */
-		if (ExternalService.nodeAttachAble()) {
-			// 가능한 자리가 있다면 해당 자리에 해당 클라이언트의 소켓을 연결
-			ExternalService.attachNode(ExternalService.getClientSocketWithIpAddr(msg.getValue()));
-			// 해당 클라이언트에게 ACK을 보낸다.
-			ExternalService.sendMessageToFamily(new Message(
-					MESSAGE_TYPE.ANSWER,
-					MESSAGE_DETAIL.ANSWER_ATTACH_NEW_NODE,
-					IpChecker.getPublicIP(),
-					msg.getValue(),
-					msg.getValue()
-					));
+	private final String TAG = "RequestHandler";
+	/*
+	 * clientList: 클라이언트 리스트 요청 핸들러
+	 * 
+	 *  최초 접속 클라이언트의 경우, 최초에 연결되는 클라이언트는 (디스크 파일을 열면서) 한 개밖에 없으므로, 
+	 * 연결된 클라이언트에게 리스트를 요청할 필요가 있다. 
+	 */
+	public void clientList(Message msg) {
+		Debug.print(TAG, "clientList", "handler for request_clientlist message. ");
+		
+		// clientList IP주소 리스트를 만든다.
+		List<String> cl_ipAddr = new LinkedList<String>();
+		for (int i = 0; i < ExternalService.getClientList().size(); i++) {
+			cl_ipAddr.add(ExternalService.getClientList().get(i).getIpAddr());
 		}
-		else {
-			// 직접적으로 연결되어 있는 클라이언트에게 메세지를 보낸다.
-			ExternalService.sendMessageToChildren(msg);
-		}
+		
+		Debug.print(TAG, "clientList", "ClientList is " + cl_ipAddr.toString());
+		
+		// 리스트를 완성한 후 메세지를 완성하여 SendQueue에 추가한다.
+		Message answer_clientList = new Message(
+				MESSAGE_TYPE.ANSWER,
+				MESSAGE_DETAIL.ANSWER_FILE_LIST,
+				IpChecker.getPublicIP(),
+				msg.getFrom(),
+				cl_ipAddr.toString()
+				);
+		ExternalService.send(answer_clientList);
 	}
-
+	public void makePair(Message msg) {
+		ExternalService.getInstance().disposeNewNode(msg.getFrom());
+	}
 }

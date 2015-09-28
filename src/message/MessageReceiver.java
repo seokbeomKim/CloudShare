@@ -3,14 +3,16 @@ package message;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.ObjectInputStream;
 import java.util.LinkedList;
+
 import debug.Debug;
+import debug.MyConstants;
 import message.Message.MESSAGE_TYPE;
 import server.ExternalService;
 
 public class MessageReceiver extends Thread {
 	private final String TAG = "MessageReceiver";
+	public boolean needToBeRefresh = false;	// 스트림 갱신용 플래그
 	private static MessageReceiver instance = null;
 	public static MessageReceiver getInstance() {
 		if (instance == null) {
@@ -55,12 +57,11 @@ public class MessageReceiver extends Thread {
 	}
 	
 	public boolean readMessage() {
-		Debug.print(TAG, "readMessage", "You have " + is.size() + " input stream(s).");
+//		Debug.print(TAG, "readMessage", "You have " + is.size() + " input stream(s).");
 
 		for (int i = 0; i < is.size(); i++) {
 			Message obj = new Message();
 			try {
-				Debug.print(TAG, "readMessage", "Check the message is available");
 				if (is.get(i).ready()) {
 					// MESSAGE_TYPE으로 PING이 들어올 수 있으니 확인
 					String r = is.get(i).readLine();
@@ -74,7 +75,7 @@ public class MessageReceiver extends Thread {
 					obj.setTo(is.get(i).readLine());
 					obj.setValue(is.get(i).readLine());
 					receive(obj);
-					Debug.print(TAG, "readMessage", "A message is read");
+					//Debug.print(TAG, "readMessage", "Read message: ");
 					return true;
 				}
 			} catch (IOException e) {
@@ -89,25 +90,30 @@ public class MessageReceiver extends Thread {
 	 * receiver가 가지고 있는 스트림의 리스트를 갱신한다.
 	 */
 	public void refreshStream() {
-		Debug.print(TAG, "refreshStream", "Refresh the stream... you have " + ExternalService.getInstance().getClientSocket().size()
-				+ " socket(s).");
+//		Debug.print(TAG, "refreshStream", "Refresh the stream... you have " + ExternalService.getInstance().getClientSocket().size()
+//				+ " socket(s).");
 		
-		if (ExternalService.getInstance().getClientSocket().size() !=
-				is.size()) {
+		if (needToBeRefresh == true ||
+				ExternalService.getClientList().size() != is.size()) {
 			is.clear();
 			Debug.print(TAG, "refreshStream", "Refresh client input stream from socket...");
-			for (int i = 0; i < ExternalService.getInstance().getClientSocket().size(); i++) {
+			
+			for (int i = 0; i < ExternalService.getClientList().size(); i++) {
 				Debug.print(TAG, "refreshStream", "client socket at " + i + "'s ip address: " 
-						+ ExternalService.getInstance().getClientSocket().get(i));
+						+ ExternalService.getClientList().get(i).getIpAddr());
 				try {
 					is.add(new BufferedReader(
-							new InputStreamReader(ExternalService.getInstance().getClientSocket().get(i).getInputStream())));
+							new InputStreamReader(ExternalService.getClientList().get(i).getSocket().getInputStream())));
 				} catch (IOException e) {
 					System.err.println("Failed to refresh inputstream with i = " + i);
 					// 클라이언트 소켓 리스트에 문제가 생긴 것이므로 처리한다.
-					ExternalService.getInstance().getClientSocket().remove(i);
+					ExternalService.getClientList().remove(i);
+				} catch (NullPointerException e2) {
+					System.err.println("Null exception? Do you have client socket? ");
+					System.exit(MyConstants.NULL_CLIENT_SOCKET_EXCEPTION);
 				}
 			}
+			needToBeRefresh = false;
 		}
 	}
 }

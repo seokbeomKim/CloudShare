@@ -1,11 +1,8 @@
 package server;
 
 import java.io.IOException;
-import java.net.BindException;
 import java.net.ServerSocket;
 import java.net.Socket;
-
-import com.sun.corba.se.impl.orbutil.concurrent.Mutex;
 
 import debug.Debug;
 
@@ -42,9 +39,9 @@ public class SocketListener extends Thread {
 			while (true) {
 				try {
 					Debug.print(TAG, "run", "Waiting new socket request...");
-					Socket socket = s.accept();
+					addClientSocket(s.accept());
 					Debug.print(TAG, "run", "Succeed to get new socket instance");
-					addClientSocket(socket);
+
 				} catch (Exception e) {
 					e.getStackTrace();
 				}
@@ -62,11 +59,10 @@ public class SocketListener extends Thread {
 	 */
 	private void addClientSocket(Socket s) {
 		try {
-			ExternalService.getInstance().getMutexClSockets().acquire();
-			ExternalService.getInstance().addClientSocket(s);
-			ExternalService.getInstance().getMutexClSockets().release();
-			
-			ExternalService.getInstance().getClientList().add(s.getInetAddress().getHostAddress());
+			ExternalService.getInstance().getMutexClientList().acquire();
+			ExternalService.addClient(
+					new Client(s.getInetAddress().getHostAddress(), s));
+			ExternalService.getInstance().getMutexClientList().release();			
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}

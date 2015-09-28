@@ -4,6 +4,8 @@ import debug.Debug;
 import message.Message.MESSAGE_DETAIL;
 import message.Message.MESSAGE_TYPE;
 import message.Message.WHAT;
+import message.handler.AnswerHandler;
+import message.handler.BrcstHandler;
 import message.handler.RequestHandler;
 import server.ExternalService;
 
@@ -14,7 +16,9 @@ import server.ExternalService;
  */
 public class MessageHandler extends Thread {
 	private final String TAG = "MessageHandler";
-	RequestHandler reqHandler = new RequestHandler();
+	RequestHandler	reqHandler = new RequestHandler();
+	AnswerHandler	ansHandler = new AnswerHandler();
+	BrcstHandler  	brcstHandler = new BrcstHandler();
 	
 	private static MessageHandler instance = null;
 	public static MessageHandler getInstance() {
@@ -46,27 +50,43 @@ public class MessageHandler extends Thread {
 		}
 	}
 	
-	// TODO handle_request
 	private void handle_request(Message msg) {
-		Debug.print(TAG, "handle_request", "Request type message");
-
-		// Request "attach new node"
-		// 클라이언트가 프로그램 실행을 통해 네트워크에 새로 접속시에 클라이언트에게 노드 자리를 요청하는 메세지
-		if (Message.is(WHAT.DETAIL, msg.getDetail(), MESSAGE_DETAIL.REQUEST_ATTACH_NEW_NODE)) {
-			reqHandler.attachNewNode(msg);
+		Debug.print(TAG, "handle_request", "Handle request type message");
+		if (Message.is(WHAT.DETAIL, msg.getDetail(), MESSAGE_DETAIL.REQUEST_CLIENT_LIST)) {
+			// 클라이언트 리스트 요청 메세지를 받았을 때
+			reqHandler.clientList(msg);
+		}
+		else if (Message.is(WHAT.DETAIL, msg.getDetail(), MESSAGE_DETAIL.REQUEST_MAKE_PAIR)) {
+			// 새로운 노드로써 요청 받았을 때 
+			reqHandler.makePair(msg);
 		}
 	}
 	
-	// TODO handle_answer
 	private void handle_answer(Message msg) {
-		Debug.print(TAG, "handle_answer", "Answer type message");
-		
+		Debug.print(TAG, "handle_answer", "Handle answer type message");
+
+		if (Message.is(WHAT.DETAIL, msg.getDetail(), MESSAGE_DETAIL.ANSWER_FILE_LIST)) {
+			// 클라이언트 리스트 요청 메세지에 대한 응답을 받았을 때  
+			ansHandler.clientList(msg);
+		}
+		else if (Message.is(WHAT.DETAIL, msg.getDetail(), MESSAGE_DETAIL.ANSWER_ATTACH_NEW_NODE)) {
+			// 새로운 네트워크 노드 위치 요청 메세지에 대한 응답을 받았을 때
+			// 브로드캐스팅 메세지에 대한 응답
+			ansHandler.attachNewNode(msg);
+		}
+		else if (Message.is(WHAT.DETAIL, msg.getDetail(), MESSAGE_DETAIL.ANSWER_MAKE_PAIR)) {
+			// 1:1 연결 요청
+			ansHandler.makePair(msg);
+		}
 	}
 	
-	// TODO handle_broadcast
 	private void handle_broadcast(Message msg) {
-		Debug.print(TAG, "handle_broadcast", "Broadcast type message");
+		Debug.print(TAG, "handle_broadcast", "Handle broadcast type message");
 
+		if (Message.is(WHAT.DETAIL, msg.getDetail(), MESSAGE_DETAIL.BROADCAST_ATTACH_NEW_NODE)) {
+			// 클라이언트 리스트 요청 메세지에 대한 응답을 받았을 때  
+			brcstHandler.attachNewNode(msg);
+		}
 	}
 	
 	@Override

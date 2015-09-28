@@ -45,13 +45,14 @@ public class DiskOpener {
 			// OperationManager가 메인 쓰레드로 실행되고 external service는 
 			// 다른 곳에서 실행되어야 한다.
 			OperationManager.OpenDisk(env_path);
+			OperationManager.mount();
 			
 			// ExternalService를 실행한다.
 			// 여기서는 ExternalService 객체 초기화와 관련 쓰레드를 실행한다.
 			ExternalService.startService();
 		
 			// 메인 쓰레드 실행 (FUSE-mounter와의 IPC 통신)
-			OperationManager.mount();
+			OperationManager.startOperator();
 			
 			return true;
 		}

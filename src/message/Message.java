@@ -1,39 +1,43 @@
 package message;
 
-import java.io.Serializable;
-
 /*
  * ExternalService용 메세지
  * 메세지 구성요소 : 누가, 누구에게, 무엇을, (언제)
  */
-public class Message implements Serializable {
+public class Message {
 	public static class MESSAGE_TYPE {
 		public static final String REQUEST = "request";
 		public static final String BROADCAST = "broadcast";
 		public static final String ANSWER = "answer";
 		public static final String PING	= "ping";
+		public static final String OPERATION = "operation";	// thread와 통신용
 	};
 	public static class MESSAGE_DETAIL {
 		public static final String REQUEST_ATTACH_NEW_NODE	= "AttachNewNode";
+		public static final String REQUEST_MAKE_PAIR			= "MakePair";
+		public static final String REQUEST_CLIENT_LIST		= "ClientList";
 		public static final String REQUEST_FILE_UPLOAD 		= "Upload";
 		public static final String REQUEST_FILE_DOWNLOAD 	= "Download";
-		public static final String REQUEST_FILE_LIST		= "Filelist";
+		public static final String REQUEST_FILE_LIST			= "Filelist";
 		
 		public static final String ANSWER_ATTACH_NEW_NODE	= "AttachNewNode";
+		public static final String ANSWER_MAKE_PAIR			= "MakePair";
+		public static final String ANSWER_FILE_LIST = "ClientList";
 		
 		public static final String BROADCAST_CLIENT_EXIT	= "ClientExit";
-	};
-	public static class ANSWER_TYPE {
-		public static final String ANSWER_NEW_NODE_APPEARED = "NewNodeAppeared";
-		public static final String ANSWER_ATTACH_NEW_NODE = "AttachNewNode";
-	};
-	public static class BROADCAST_TYPE {
-		public static final String BROADCAST_NEW_NODE_APPEARED = "NewNodeAppeared";
+		public static final String BROADCAST_ATTACH_NEW_NODE = "AttachNewNode";
+		
+		public static final String OPERATION_REFRESH_STREAM	= "RefreshStream";
 	};
 	
 	public static final String MESSAGE_TOKEN = "::__::";
 	public static final String MESSAGE_SPLITTER 	= ";;";
 	public static final String MESSAGE_NOTHING = "nothing";
+	
+	public static final String LEFT_CHILD 	= "LeftChild";
+	public static final String RIGHT_CHILD 	= "RightChild";
+	public static final String PARENT 		= "Parent";
+	
 	
 	private String type;			// 메세지 타입
 	private String to;					// 메세지 수신자
@@ -58,6 +62,23 @@ public class Message implements Serializable {
 		this.setTo(to);
 		this.setValue(value);
 		this.setDetail(specific_type);
+	}
+	
+	public Message(Message message) {
+		this.setType(message.getType());
+		this.setFrom(message.getFrom());
+		this.setTo(message.getTo());
+		this.setValue(message.getValue());
+		this.setDetail(message.getDetail());
+	}
+	
+	public void getInfo() {
+		System.out.println("Message info: "
+                + "\ntype  = " + getType() 
+                + "\ndetail= " + getDetail()
+			    + "\nfrom  = " + getFrom()
+			    + "\nto    = " + getTo() 
+			    + "\nvalue = " + getValue());
 	}
 	
 	public static enum WHAT {
@@ -97,8 +118,7 @@ public class Message implements Serializable {
 	 * TODO IPC 메세지로의 변환
 	 */
 	public IPCMessage toIPCMessage() {
-		IPCMessage r = new IPCMessage();
-		
+	
 		return null;
 	}
 

@@ -29,6 +29,9 @@ public class MessageSender extends Thread {
 	 */
 	private Message prevMsg;
 	private long latency = 1000;
+	private long A_SECOND_IN_MILLISECOND = 1000;
+	private long ping_latency = 30 * A_SECOND_IN_MILLISECOND / latency;		// PING을 보내 클라이언트 체크하는 시간
+	private long count = 0;
 	
 	/*
 	 * CheckConnection
@@ -40,9 +43,9 @@ public class MessageSender extends Thread {
 	 * 때문에 두 번째 선택지인 PING을 사용하는 방법을 택했다. checkConnection 메서드는 이를 위해 만들어진 메서드이다.
 	 */
 	public void checkConnection() {
-		for (int i = 0; i < ExternalService.getInstance().getClientSocket().size(); i++) {
+		for (int i = 0; i < ExternalService.getClientList().size(); i++) {
 			try {
-				PrintWriter w = new PrintWriter(ExternalService.getInstance().getClientSocket().get(i)
+				PrintWriter w = new PrintWriter(ExternalService.getClientList().get(i).getSocket()
 						.getOutputStream(), true);
 
 				w.println(MESSAGE_TYPE.PING);
@@ -50,8 +53,7 @@ public class MessageSender extends Thread {
 				if (w.checkError()) {
 					// 만약 해당 타겟의 클라이언트와의 접속 문제가 있는 경우
 					System.err.println("There might be a problem. Remove this client node from your client list.");
-					ExternalService.getInstance().getClientList().remove(i);
-					ExternalService.getInstance().getClientSocket().remove(i);
+					ExternalService.getClientList().remove(i);
 				}
 			} catch (IOException e) {
 				e.printStackTrace();
@@ -62,16 +64,19 @@ public class MessageSender extends Thread {
 	@Override
 	public void run() {
 		while (true) {
-			checkConnection();
-			
 			if (!ExternalService.getSendQueue().isEmpty()) {
-				Debug.print(TAG, "run", "Message exists in sendqueue. Send a message...");
+//				Debug.print(TAG, "run", "Message exists in sendqueue. Send a message...");
 				// send 메세지큐에 메세지가 존재할 경우 타겟에게 메세지를 보낸다.
 				Message msg = ExternalService.getSendQueue().poll();
 				send(msg);
 			}	
 			try {
 				Thread.sleep(latency);
+				count++;
+				if (count == ping_latency) {
+					checkConnection();
+					count = 0;
+				}
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
@@ -79,7 +84,6 @@ public class MessageSender extends Thread {
 	}
 	
 	public void send(Message msg) {
-		Debug.print(TAG, "send", "Send message");
 		if (prevMsg == null) {
 			// 이전 메세지에 대한 기록이 없다면 바로 보낸다.\
 			do_send(msg);
@@ -96,11 +100,22 @@ public class MessageSender extends Thread {
 	// 실제로 전송하는 부분
 	private void do_send(Message msg) {
 		String target = (String)msg.getTo();
-		Debug.print(TAG, "do_send", "try to send message to " + target);
+		msg.getInfo();
 		Socket s = ExternalService.getClientSocketWithIpAddr(target);
+		boolean temp = false;
 		if (s == null) {
-			System.err.println("Cannot find target from the list. do_send failed.");
-			Debug.print(TAG, "do_send", "Can't find matched client socket");
+			Debug.error(TAG, "do_send", "Cannot find target from the list. ");
+			Debug.print(TAG, "do_send", "Can't find matched client socket. Create temporary socket.");
+			
+			// 임시로 소켓 할당하여 메세지 송신
+			// 송신 후에는 소켓 삭제 
+			s = ExternalService.getInstance().allocateSocketTemporarily(msg.getTo());
+			if (s == null) {
+				// 만약 임시로 소켓 할당 받는 것도 안된다면 (완전히 클라이언트 접속 불가)
+				// 메세지 버린다.
+				Debug.error(TAG, "do_send", "Failed to get temporary socket. Just give it up.");
+			}
+			temp = true;
 		}
 		try {
 			PrintWriter w = new PrintWriter(s.getOutputStream(), true);
@@ -110,9 +125,18 @@ public class MessageSender extends Thread {
 			w.println(msg.getFrom());
 			w.println(msg.getTo());
 			w.println(msg.getValue());
-			Debug.print(TAG, "do_send", "Send message object to " + target);
 		} catch (IOException e) {
 			System.err.println(e);
-		} 
+			// 클라이언트 소켓 리스트에 문제가 생긴 것이므로 처리한다.
+			ExternalService.getInstance().removeClientWithIPAddr(target);
+		}
+		
+		if (temp == true) {
+			try {
+				s.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+		}
 	}	
 }

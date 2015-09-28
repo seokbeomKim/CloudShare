@@ -40,7 +40,13 @@ public class Debug {
 
 	static public void print(String class_name, String func_name, String message) {
 		if (getInstance().isEnabled()) {
-			System.out.println("["+class_name+"]["+func_name+"] "+ message);
+			System.out.println("["+class_name+"]["+func_name+"]\t"+ message);
+		}
+	}
+	
+	static public void error(String class_name, String func_name, String message) {
+		if (getInstance().isEnabled()) {
+			System.err.println("!! ["+class_name+"]["+func_name+"] "+ message);
 		}
 	}
 }

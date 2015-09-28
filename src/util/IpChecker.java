@@ -8,7 +8,6 @@ import java.net.MalformedURLException;
 import java.net.NetworkInterface;
 import java.net.SocketException;
 import java.net.URL;
-import java.net.UnknownHostException;
 import java.util.Enumeration;
 
 import debug.Debug;
@@ -57,7 +56,7 @@ public class IpChecker {
 				// 가상머신에서는 vboxnet0이 아니라 eth?으로 인터페이스가 명명되기 때문에 
 				ip = checkLocalIP("eth1");
 			}
-			Debug.print(TAG, "getPublicIP", "IP for debugging : " + ip);
+//			Debug.print(TAG, "getPublicIP", "IP for debugging : " + ip);
 			return ip;
 		}
 		// FAILED
@@ -77,7 +76,6 @@ public class IpChecker {
 			try {
 				ex = NetworkInterface.getNetworkInterfaces();
 			} catch (SocketException e1) {
-				// TODO Auto-generated catch block
 				e1.printStackTrace();
 			}
 			while(ex.hasMoreElements())
@@ -92,6 +90,7 @@ public class IpChecker {
 				}
 				
 				// 확인 후에는 ip주소값을 얻어온다.
+				@SuppressWarnings("unused")
 				String name = n.getName(), ip = null;
 				ee.nextElement();	// 첫번째 MAC 주소
 			    while (ee.hasMoreElements())
@@ -101,7 +100,7 @@ public class IpChecker {
 		        	ip = i.getHostAddress();
 			    }
 			    
-			    Debug.print(TAG, "checkLocalIP", "ip = "+ ip + ", name = " + name);
+//			    Debug.print(TAG, "checkLocalIP", "ip = "+ ip + ", name = " + name);
 			    return ip;
 			}
 		} catch (Exception e) {

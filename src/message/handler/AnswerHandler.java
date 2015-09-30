@@ -68,4 +68,8 @@ public class AnswerHandler {
 		ExternalService.getInstance().makeClientToFamily(msg);
 	}
 
+	public void fileList(Message msg) {
+		ExternalService.getInstance().receiveBroadcastAnswer(msg);		
+	}
+
 }

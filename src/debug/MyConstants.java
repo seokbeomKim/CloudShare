@@ -9,5 +9,7 @@ package debug;
 public class MyConstants {
 	public static final int NEED_TO_RUN_VIRTUALBOX		= 2;
 	public static final int NULL_CLIENT_SOCKET_EXCEPTION = 3;
+	public static final int NO_CLIENT_AVAILABLE = 4;
+	
 	
 }

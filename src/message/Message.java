@@ -18,14 +18,16 @@ public class Message {
 		public static final String REQUEST_CLIENT_LIST		= "ClientList";
 		public static final String REQUEST_FILE_UPLOAD 		= "Upload";
 		public static final String REQUEST_FILE_DOWNLOAD 	= "Download";
-		public static final String REQUEST_FILE_LIST			= "Filelist";
+		public static final String REQUEST_FILE_LIST			= "FileList";
 		
 		public static final String ANSWER_ATTACH_NEW_NODE	= "AttachNewNode";
 		public static final String ANSWER_MAKE_PAIR			= "MakePair";
-		public static final String ANSWER_FILE_LIST = "ClientList";
+		public static final String ANSWER_FILE_LIST 			= "FileList";
+		public static final String ANSWER_CLIENT_LIST		= "ClientList";
 		
 		public static final String BROADCAST_CLIENT_EXIT	= "ClientExit";
 		public static final String BROADCAST_ATTACH_NEW_NODE = "AttachNewNode";
+		public static final String BROADCAST_FILE_LIST		= "FileList";
 		
 		public static final String OPERATION_REFRESH_STREAM	= "RefreshStream";
 	};

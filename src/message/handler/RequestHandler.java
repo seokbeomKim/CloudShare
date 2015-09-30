@@ -4,11 +4,13 @@ import java.util.LinkedList;
 import java.util.List;
 
 import debug.Debug;
+import fm.FileSender;
 import message.Message;
 import message.Message.MESSAGE_DETAIL;
 import message.Message.MESSAGE_TYPE;
 import server.ExternalService;
 import util.IpChecker;
+import util.MyConverter;
 
 /*
  * Request 메세지를 처리하는 클래스
@@ -37,7 +39,7 @@ public class RequestHandler {
 		// 리스트를 완성한 후 메세지를 완성하여 SendQueue에 추가한다.
 		Message answer_clientList = new Message(
 				MESSAGE_TYPE.ANSWER,
-				MESSAGE_DETAIL.ANSWER_FILE_LIST,
+				MESSAGE_DETAIL.ANSWER_CLIENT_LIST,
 				IpChecker.getPublicIP(),
 				msg.getFrom(),
 				cl_ipAddr.toString()
@@ -46,5 +48,28 @@ public class RequestHandler {
 	}
 	public void makePair(Message msg) {
 		ExternalService.getInstance().disposeNewNode(msg.getFrom());
+	}
+	
+	/*
+	 * fileDownload
+	 * 상대방이 파일 다운로드를 하겠다고 요청하는 메세지를 보냈을 때 처리
+	 * 이 때, 메세지 안에는 파일 리스트가 담겨있다.
+	 */
+	public void fileDownload(Message msg) {
+		// 보내야할 파일 리스트 
+		LinkedList<String> fileList = MyConverter.convertStrToList(msg.getValue());
+		
+		Debug.print(TAG, "fileDownload", "file list = " + fileList.toString());
+		
+		// Handler에서 파일 다운로드/업로드의 경우 시간이 오래 걸릴 수 있으므로 쓰레드를 만들어 처리
+		for (int i = 0; i < fileList.size(); i++) {
+			FileSender f_sender = new FileSender(msg.getFrom(), fileList.get(i));
+			f_sender.start();	
+		}
+	}
+	public void fileList(Message msg) {
+		LinkedList<String> fileList = MyConverter.convertStrToList(msg.getValue());
+		
+		Debug.print(TAG, "fileList", "file list = " + fileList.toString());
 	}
 }

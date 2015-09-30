@@ -12,6 +12,7 @@ import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 
 import debug.Debug;
+import fm.FileSender;
 
 /*
  * 사용자로부터 받은 커맨드 처리 클래스 
@@ -50,6 +51,8 @@ public class CmdParser {
 	    private boolean doGenerate = false;
 	    @Option(name="-l", usage="CloudShare -l")
 	    private boolean showLicenses = false;
+	    @Option(name="-d", usage="CloudShare -d debug_code")
+	    private boolean debug = false;
 	    
 	    @Argument
 	    private List<String> arguments = new ArrayList<String>();
@@ -64,6 +67,17 @@ public class CmdParser {
 	    	
 	    	else if (showLicenses) {
 	    		Debug.print(TAG, "handle", "Show licenses");
+	    	}
+	    	
+	    	else if (debug) {
+	    		// 디버그에서
+	    		Debug.print(TAG, "handle", "Debug mode: " + arguments.get(1));
+	    		if (arguments.get(1).compareTo("filetransfer") == 0) {
+	    			// file transfer 테스트 
+	    			Debug.print(TAG, "handle", "Debug: filetransfer");
+	    			FileSender sender = new FileSender("192.168.56.1", "test.cs");
+	    			sender.start();
+	    		}
 	    	}
 
 	    	else {

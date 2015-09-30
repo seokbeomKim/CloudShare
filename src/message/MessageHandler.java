@@ -34,7 +34,8 @@ public class MessageHandler extends Thread {
 	// 메세지 처리하는 부분
 	public void handle(Message msg)
 	{
-		Debug.print(TAG, "handle", "Handle message");
+		Debug.print(TAG, "handle", "Handle message: ");
+		msg.getInfo();
 		switch (msg.getType()) {
 		case MESSAGE_TYPE.REQUEST:
 			handle_request(msg);
@@ -60,12 +61,19 @@ public class MessageHandler extends Thread {
 			// 새로운 노드로써 요청 받았을 때 
 			reqHandler.makePair(msg);
 		}
+		else if (Message.is(WHAT.DETAIL, msg.getDetail(), MESSAGE_DETAIL.REQUEST_FILE_LIST)) {
+			reqHandler.fileList(msg);
+		}
+		else if (Message.is(WHAT.DETAIL, msg.getDetail(), MESSAGE_DETAIL.REQUEST_FILE_DOWNLOAD)) {
+			// 파일 리스트에 대해서 다운로드 요청이 들어왔을 때
+			reqHandler.fileDownload(msg);
+		}
 	}
 	
 	private void handle_answer(Message msg) {
 		Debug.print(TAG, "handle_answer", "Handle answer type message");
 
-		if (Message.is(WHAT.DETAIL, msg.getDetail(), MESSAGE_DETAIL.ANSWER_FILE_LIST)) {
+		if (Message.is(WHAT.DETAIL, msg.getDetail(), MESSAGE_DETAIL.ANSWER_CLIENT_LIST)) {
 			// 클라이언트 리스트 요청 메세지에 대한 응답을 받았을 때  
 			ansHandler.clientList(msg);
 		}
@@ -78,14 +86,21 @@ public class MessageHandler extends Thread {
 			// 1:1 연결 요청
 			ansHandler.makePair(msg);
 		}
+		else if (Message.is(WHAT.DETAIL, msg.getDetail(), MESSAGE_DETAIL.ANSWER_FILE_LIST)) {
+			ansHandler.fileList(msg);
+		}
 	}
 	
 	private void handle_broadcast(Message msg) {
 		Debug.print(TAG, "handle_broadcast", "Handle broadcast type message");
 
 		if (Message.is(WHAT.DETAIL, msg.getDetail(), MESSAGE_DETAIL.BROADCAST_ATTACH_NEW_NODE)) {
-			// 클라이언트 리스트 요청 메세지에 대한 응답을 받았을 때  
+			// 클라이언트 리스트 요청 메세지에 대한 브로드캐스팅 메세지를 받았을 때  
 			brcstHandler.attachNewNode(msg);
+		}
+		else if (Message.is(WHAT.DETAIL, msg.getDetail(), MESSAGE_DETAIL.BROADCAST_FILE_LIST)) {
+			// 파일 리스트 요청 메세지에 대한 브로드캐스팅 메세지를 받았을 때
+			brcstHandler.fileList(msg);
 		}
 	}
 	

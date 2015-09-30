@@ -51,7 +51,7 @@ public class OperationManager {
 	private ServerSocket listener2;
 	
 	// 메세지 큐 (External Service로부터 수신된 메세지를 위한 큐)
-	private Queue<Message> msgQueue;
+	private Queue<IPCMessage> msgQueue;
 	
 	// IPC-message 타입에 따른 메서드
 	HashMap<String, Method> ipcMsgHandler;
@@ -72,7 +72,7 @@ public class OperationManager {
 	private String mountpoint;
 	
 	private OperationManager() {
-		setMsgQueue(new LinkedList<Message>());
+		setMsgQueue(new LinkedList<IPCMessage>());
 		setMountpoint(System.getenv("HOME") + File.separator + "CloudShare");
 		ipcMsgHandler = new HashMap<>();
 		
@@ -109,6 +109,11 @@ public class OperationManager {
 				IPCMessage.NOTHING
 				));
 	}
+	/*
+	 * handle_reqFileList
+	 * FUSE-mounter로부터 fileList 요청을 처리한다.
+	 * ExternalService에 브로드캐스팅 메세지 송신을 요청하고 ackFileList를 처리해주어야한다.
+	 */
 	public static void handle_reqFileList(Message msg) {
 		getInstance()._handle_reqFileList(msg);
 	}
@@ -118,6 +123,9 @@ public class OperationManager {
 		 * ExternalService에 filelist request 메세지 송신 요청
 		 * 후에, filelist에 대한 Answer을 받으면 ExternalService에서 일괄 처리한다.
 		 */
+		msg.setType(MESSAGE_TYPE.BROADCAST);
+		msg.setValue(IpChecker.getPublicIP());
+		ExternalService.getInstance().allocateBrcstAnswersQueue(msg.getDetail());
 		ExternalService.sendMessageToFamily(msg);
 	}
 	/*
@@ -241,8 +249,8 @@ public class OperationManager {
 		if (!msgQueue.isEmpty()) {
 			Debug.print(TAG, "HandleMessageFromExternalService", 
 					"Message queue is not empty! Do handle a message from external service");
-			Message msg = msgQueue.poll();
-			sendMessageToFuseMounter(msg.toIPCMessage());
+			IPCMessage msg = msgQueue.poll();
+			sendMessageToFuseMounter(msg);
 		}
 	}
 
@@ -325,7 +333,7 @@ public class OperationManager {
 	 * ACK을 따로 받지 않고 보내기만 한다. 
 	 * (ACK을 보내는 것이 아니다)
 	 */
-	private void sendMessageToFuseMounter(IPCMessage msg) {
+	public void sendMessageToFuseMounter(IPCMessage msg) {
 		Debug.print(TAG, "sendMessageToFuseMounter", "Message : " + msg.getType() + ", " + msg.getValue());
 		String value = msg.getType() + "::" + msg.getValue();
 		fd_out.println(value);
@@ -338,7 +346,7 @@ public class OperationManager {
 	 * broadcast 메세지로 처리한다.
 	 */
 	@SuppressWarnings("unused")
-	private void sendMessageToExternalService(IPCMessage msg) {
+	public void sendMessageToExternalService(IPCMessage msg) {
 		Debug.print(TAG, "sendMessageToExternalService", "Message : " + msg.getType() + ", " + msg.getValue());
 
 		String[] values = msg.getType().split("_");
@@ -359,7 +367,7 @@ public class OperationManager {
 		Debug.print(TAG, "executeFUSEProgram", "EXecute cloudshare program");
 		try {
 			final ProcessBuilder pb = 
-					new ProcessBuilder("./CloudShare", "-f", "~/CloudShare");
+					new ProcessBuilder("../CloudShare", "-f", "~/CloudShare");
 			final Process p = pb.start();
 			assert p.getInputStream().read() == -1;
 			
@@ -418,11 +426,11 @@ public class OperationManager {
 		this.mountpoint = mountpoint;
 	}
 
-	public Queue<Message> getMsgQueue() {
+	public Queue<IPCMessage> getMsgQueue() {
 		return msgQueue;
 	}
 
-	public void setMsgQueue(Queue<Message> msgQueue) {
+	public void setMsgQueue(Queue<IPCMessage> msgQueue) {
 		this.msgQueue = msgQueue;
 	}
 	

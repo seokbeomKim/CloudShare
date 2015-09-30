@@ -14,7 +14,10 @@ import com.sun.corba.se.impl.orbutil.concurrent.Mutex;
 
 import debug.Debug;
 import debug.MyConstants;
+import disk.CloudShareInfo;
 import disk.DiskInfo;
+import fm.FileListener;
+import message.IPCMessage;
 import message.Message;
 import message.Message.MESSAGE_DETAIL;
 import message.Message.MESSAGE_TYPE;
@@ -23,7 +26,9 @@ import message.MessageHandler;
 import message.MessageReceiver;
 import message.MessageSender;
 import message.handler.BrcstAnsHandler;
+import operation.OperationManager;
 import util.IpChecker;
+import util.MyConverter;
 
 /*
  * 전체적인 시스템 구성
@@ -55,6 +60,7 @@ public class ExternalService {
 	private List<Client> clientList;	// 클라이언트 IP 주소 리스트
 	private Mutex mutexClientList;
 	private SocketListener sock_listener;		// Socket listener thread
+	private FileListener file_listener;			// Socket listener for file transfer 
 	// 2. Message Receiver
 	MessageReceiver msg_receiver;
 	// 3. Message Sender
@@ -96,6 +102,12 @@ public class ExternalService {
 			sock_listener.start();
 		}
 		
+		// File transfer socket listener
+		if (file_listener == null) {
+			file_listener = new FileListener();
+			file_listener.start();
+		}
+		
 		// 디스크의 생성자를 확인하여 자기 자신인지 아닌지 확인한다.
 		// 디스크 생성자가 아닌 경우에는 해당 클라이언트와의 통신을 위한 소켓을 생성하여 리스트에 추가한다.
 		// 중요한 것은 디스크 생성자라고 특별해지는 것이 없다. 다만 클라이언트 리스트에 디스크 생성자가 추가되느냐 아니냐가 달라질 뿐이다.
@@ -128,7 +140,15 @@ public class ExternalService {
 			} 
 			catch (Exception e) {
 				// 소켓 연결에 실패한 경우
-				Debug.error(TAG, "createSocketFromClientList", "Failed to add socket : " + clientList.get(i).getIpAddr());
+				if (clientList.size() != 0) {
+					Debug.error(TAG, "createSocketFromClientList", "Failed to add socket : " + clientList.get(i).getIpAddr());
+				}
+				else {
+					// 이 경우에는 디스크 파일에 충분한 클라이언트 리스트가 없거나 현재 연결가능한 클라이언트가 없는 상태
+					Debug.error(TAG, "ExternalService", "No client is available to make connection. Program halted");
+					System.exit(MyConstants.NO_CLIENT_AVAILABLE); 
+				}
+				
 				e.printStackTrace();
 			}
 		}
@@ -151,6 +171,7 @@ public class ExternalService {
 		// ANSWER 핸들러 등록
 		try {
 			answerMethods.put(MESSAGE_DETAIL.ANSWER_ATTACH_NEW_NODE, ExternalService.class.getMethod("handler_AttachNode"));
+			answerMethods.put(MESSAGE_DETAIL.ANSWER_FILE_LIST, ExternalService.class.getMethod("handler_FileList"));
 		} catch (NoSuchMethodException e) {
 			e.printStackTrace();
 		} catch (SecurityException e) {
@@ -233,7 +254,7 @@ public class ExternalService {
 	 * 이 메서드는 새로운 큐를 만들고 해당 큐를 일정시간 후에 처리할 수 있도록 쓰레드를 생
 	 * 성하는 역할을 한다.
 	 */
-	private void allocateBrcstAnswersQueue(String broadcast_type) {
+	public void allocateBrcstAnswersQueue(String broadcast_type) {
 		Queue<Message> q = new LinkedList<Message>();
 		brcstAnswerQueue.put(broadcast_type, q);
 		
@@ -524,6 +545,8 @@ public class ExternalService {
 	
 	/*
 	 * broadcast 메세지에 대한 핸들러들
+	 * 핸들러로 정의된 메서드들은 brcstAnsHandler가 대기를 마치고 깨어나서 
+	 * answer로 받아온 메세지를 처리한다.
 	 */
 	public static void handler_AttachNode() {
 		getInstance()._handler_AttachNode();
@@ -581,6 +604,71 @@ public class ExternalService {
 		brcstAnswerQueue.remove(MESSAGE_DETAIL.BROADCAST_ATTACH_NEW_NODE);
 	}
 
+	public static void handler_FileList() {
+		getInstance()._handler_FileList();
+	}
+	private void _handler_FileList() {
+		Debug.print(TAG, "handler_FileList", "Handle filelist answer messages..");
+		Queue<Message> msgQ = brcstAnswerQueue.get(MESSAGE_DETAIL.BROADCAST_FILE_LIST);
+		// 전달받은 메세지 값을 통해서 파일 리스트를 생성하고 현재 파일과 비교하여 요청한다.
+		
+		int file_cnt = -1;
+		Message msg = null;
+		LinkedList<String> list = null;
+		if (msgQ.size() == 0) {
+			brcstAnswerQueue.remove(MESSAGE_DETAIL.BROADCAST_FILE_LIST);
+			Debug.error(TAG, "handle_FileList", "There is nothing to do for filelist.");
+			OperationManager.getInstance().getMsgQueue().add(new IPCMessage(
+					IPCMessage.ACK_FILELIST, ""));
+			return;
+		}
+		for (int i = 0; i < msgQ.size(); i++) {
+			// 각각의 클라이언트에서 메세지 리스트를 수집하여 파일 다운로드를 준비한다.
+			// 모든 클라이언트는 동기화되어 있다고 전제한다. 때문에 여기서는 클라이언트들간의 파일 갯수를
+			// 단순히 비교하여 문제가 생기는지 확인한다.
+			msg = msgQ.poll();
+			list = MyConverter.convertStrToList(msg.getValue());
+			int temp = list.size();
+			if (file_cnt < 0) {
+				file_cnt = temp;
+			}
+			else {
+				if (file_cnt != temp) {
+					Debug.error(TAG, "_handler_FileList", "Something wrong with file synchronization between clients.");
+				}
+			}
+		}
+		
+		// TODO 최적화 가능하다. 추후, for loop를 돌며 검사하는 부분을 쓰레드로 만들어 처리할 시에 
+		// 성능 향상을 기대할 수 있을 것 같다.
+		// 검사가 (정상적으로) 끝났으면 메세지를 통해 새로 받아야 하는 파일 리스트를 만들고 요청한다.
+		for (int i = 0; i < list.size(); i++) {
+			if (CloudShareInfo.getInstance().checkFileExist(list.get(i))) {
+				// 만약 파일이 있다면 다운로드 목록에서 제외시켜야 한다.
+				list.remove(i);
+			}
+		}
+		
+		Debug.print(TAG, "handle_FileList", "file list: " + list.toString());
+		
+		// 파일 다운로드 준비가 되었다면 메세지를 만들어 보낸다.
+		send(new Message(
+				MESSAGE_TYPE.REQUEST,
+				MESSAGE_DETAIL.REQUEST_FILE_DOWNLOAD,
+				IpChecker.getPublicIP(),
+				msg.getFrom(),
+				list.toString()
+				));
+		
+		// 메세지를 보낸 후, Fuse-mounter에게 FILE_LIST 요청에 대해서 ACK을 보낸다. 
+		// FILE_DOWNLOAD는 알아서 진행될 것이기 때문에 *
+		OperationManager.getInstance().getMsgQueue().add(new IPCMessage(
+				IPCMessage.ACK_FILELIST, ""));
+		
+		// answer 큐 정리
+		brcstAnswerQueue.remove(MESSAGE_DETAIL.BROADCAST_FILE_LIST);
+	}
+
 	/*
 	 * makeClientToFamily
 	 * 메세지로부터 값을 읽어 해당 클라이언트의 자리를 결정한다.
@@ -594,5 +682,13 @@ public class ExternalService {
 		else {
 			Debug.error(TAG, "makeClientToFamily", "Need to implement more..about extra case");
 		}
+	}
+
+	public FileListener getFile_listener() {
+		return file_listener;
+	}
+
+	public void setFile_listener(FileListener file_listener) {
+		this.file_listener = file_listener;
 	}
 }

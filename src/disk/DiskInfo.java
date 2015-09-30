@@ -13,6 +13,7 @@ public class DiskInfo {
 	private String diskip;
 	private List<String> clients;
 	private String capacity;	// MB 단위
+	private String diskpath;
 	
 	@SuppressWarnings("unused")
 	private final String TAG = "DiskInfo";
@@ -75,5 +76,13 @@ public class DiskInfo {
 
 	public void setDiskip(String diskip) {
 		this.diskip = diskip;
+	}
+
+	public String getDiskpath() {
+		return diskpath;
+	}
+
+	public void setDiskpath(String diskpath) {
+		this.diskpath = diskpath;
 	}
 }

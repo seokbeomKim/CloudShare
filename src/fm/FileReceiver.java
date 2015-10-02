@@ -50,13 +50,22 @@ public class FileReceiver extends Thread {
 			Debug.print(TAG, "run", "Received meta data: " + metaStr);
 			
 			String[] v = metaStr.split("\'");
+			
 			int fsize = Integer.parseInt(v[0]);
 			String fname = v[1];	
 			current = 0;
 
 			// 파일 생성 및 파일 출력 위한 스트림 준비
 			// JAVA의 파일 이름관련 보안문제로 확장자 (.*)를 사용 불가 - NUL character
-			String fp = CloudShareInfo.getInstance().getMntPoint() + File.separator + fname;
+			String fp;
+			if (v.length == 3) {
+				Debug.print(TAG, "run", "Download file is parted file .... change the destinatin.");
+				fp = CloudShareInfo.getInstance().getDownloadPoint() + File.separator + fname;
+			}
+			else {
+				fp = CloudShareInfo.getInstance().getCacheDirectory() + File.separator + fname;
+			}
+			
 			fp = fp.replace("\0", "");
 
 			Path path = Paths.get(fp);

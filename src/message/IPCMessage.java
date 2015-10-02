@@ -11,10 +11,10 @@ public class IPCMessage {
 	public static final String ACK_REFRESH		= "ack_refresh";
 	public static final String REQUEST_FILELIST	= "request_FileList";
 	public static final String ACK_FILELIST		= "ack_FileList";
-	public static final String REQUEST_UPLOAD		= "request_upload";
-	public static final String ACK_UPLOAD			= "ack_upload";
-	public static final String REQUEST_DOWNLOAD	= "request_download";
-	public static final String ACK_DOWNLOAD		= "ack_download";
+	public static final String REQUEST_UPLOAD		= "request_Upload";
+	public static final String ACK_UPLOAD			= "ack_Upload";
+	public static final String REQUEST_DOWNLOAD	= "request_Download";
+	public static final String ACK_DOWNLOAD		= "ack_Download";
 	public static final String REQUEST_CHECK_CONNECTION	= "request_checkconnection";
 	public static final String ACK_CHECK_CONNECTION		= "ack_checkconnection";
 	public static final String ACK_VALUE					= "ack_value";

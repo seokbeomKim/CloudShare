@@ -68,6 +68,11 @@ public class MessageHandler extends Thread {
 			// 파일 리스트에 대해서 다운로드 요청이 들어왔을 때
 			reqHandler.fileDownload(msg);
 		}
+		else if (Message.is(WHAT.DETAIL, msg.getDetail(), MESSAGE_DETAIL.REQUEST_FILE_LINK)) {
+			// 파일 업로드에 대한 요청을 받았을 때
+			// 타겟 클라이언트가 파일 업로드를 하고자 해서 해당 클라이언트에게 분할 파일을 보내고자 하는 경우 
+			reqHandler.fileLink(msg);
+		}
 	}
 	
 	private void handle_answer(Message msg) {
@@ -89,6 +94,12 @@ public class MessageHandler extends Thread {
 		else if (Message.is(WHAT.DETAIL, msg.getDetail(), MESSAGE_DETAIL.ANSWER_FILE_LIST)) {
 			ansHandler.fileList(msg);
 		}
+		else if (Message.is(WHAT.DETAIL, msg.getDetail(), MESSAGE_DETAIL.ANSWER_FILE_UPLOAD)) {
+			ansHandler.fileUpload(msg);
+		}
+		else if (Message.is(WHAT.DETAIL, msg.getDetail(), MESSAGE_DETAIL.ANSWER_FILE_LINK)) {
+			ansHandler.fileLink(msg);
+		}
 	}
 	
 	private void handle_broadcast(Message msg) {
@@ -101,6 +112,10 @@ public class MessageHandler extends Thread {
 		else if (Message.is(WHAT.DETAIL, msg.getDetail(), MESSAGE_DETAIL.BROADCAST_FILE_LIST)) {
 			// 파일 리스트 요청 메세지에 대한 브로드캐스팅 메세지를 받았을 때
 			brcstHandler.fileList(msg);
+		}
+		else if (Message.is(WHAT.DETAIL, msg.getDetail(), MESSAGE_DETAIL.BROADCAST_FILE_UPLOAD)) {
+			// 파일 업로드 브로드캐스팅 메세지를 받았을 때
+			brcstHandler.fileUpload(msg);
 		}
 	}
 	

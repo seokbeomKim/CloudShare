@@ -1,5 +1,6 @@
 package message.handler;
 
+import java.io.File;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -9,6 +10,7 @@ import message.Message;
 import message.Message.MESSAGE_DETAIL;
 import message.Message.MESSAGE_TYPE;
 import server.ExternalService;
+import util.CloudLogReader;
 import util.IpChecker;
 import util.MyConverter;
 
@@ -55,21 +57,49 @@ public class RequestHandler {
 	 * 상대방이 파일 다운로드를 하겠다고 요청하는 메세지를 보냈을 때 처리
 	 * 이 때, 메세지 안에는 파일 리스트가 담겨있다.
 	 */
-	public void fileDownload(Message msg) {
+	public void fileList(Message msg) {
 		// 보내야할 파일 리스트 
 		LinkedList<String> fileList = MyConverter.convertStrToList(msg.getValue());
 		
-		Debug.print(TAG, "fileDownload", "file list = " + fileList.toString());
+		Debug.print(TAG, "fileList", "file list = " + fileList.toString());
 		
 		// Handler에서 파일 다운로드/업로드의 경우 시간이 오래 걸릴 수 있으므로 쓰레드를 만들어 처리
 		for (int i = 0; i < fileList.size(); i++) {
+			File f = new File(fileList.get(i));
 			FileSender f_sender = new FileSender(msg.getFrom(), fileList.get(i));
 			f_sender.start();	
 		}
 	}
-	public void fileList(Message msg) {
+	public void fileDownload(Message msg) {
 		LinkedList<String> fileList = MyConverter.convertStrToList(msg.getValue());
 		
-		Debug.print(TAG, "fileList", "file list = " + fileList.toString());
+		Debug.print(TAG, "fileDownload", "file list = " + fileList.toString());
+	}
+	
+	/*
+	 * 클라이언트(새로운 파일을 업로드하고자 하는)로부터 file upload 요청이 들어왔을 때 처리
+	 * 상대방이 이미 파일을 보낸 상태에서 request를 보내는 것이기 때문에 상대방에게 공유 링크를
+	 * ACK으로 보내준다.
+	 */
+	public void fileLink(Message msg) {
+		/*
+		 * FUSE-mounter로부터 CloudShare 에 파일이 업로드 되는 경우 해당 파일의 공유링크를
+		 * $HOME/.cslog에 저장하도록 설계하였다. 공유링크는 해당 파일로부터 값을 읽어 리턴해준다.
+		 */
+		msg.getInfo();
+		String shared_link = null;
+		
+		// Request 요청한 클라이언트가 필요로 하는 링크의 파일 이름
+		String fname = msg.getValue();
+		shared_link = CloudLogReader.getLink(fname);
+		
+		Message answer_clientList = new Message(
+				MESSAGE_TYPE.ANSWER,
+				MESSAGE_DETAIL.ANSWER_FILE_LINK,
+				IpChecker.getPublicIP(),
+				msg.getFrom(),
+				shared_link
+				);
+		ExternalService.send(answer_clientList);		
 	}
 }

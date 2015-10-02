@@ -24,6 +24,7 @@ import debug.Debug;
 import disk.DiskInfo;
 import message.IPCMessage;
 import message.Message;
+import message.Message.MESSAGE_DETAIL;
 import message.Message.MESSAGE_TYPE;
 import server.ExternalService;
 import util.IpChecker;
@@ -82,6 +83,10 @@ public class OperationManager {
 					OperationManager.class.getMethod("handle_reqCheckConnection", Message.class));
 			ipcMsgHandler.put(IPCMessage.REQUEST_FILELIST, 
 					OperationManager.class.getMethod("handle_reqFileList", Message.class));
+			ipcMsgHandler.put(IPCMessage.REQUEST_DOWNLOAD, 
+					OperationManager.class.getMethod("handle_reqDownload", Message.class));
+			ipcMsgHandler.put(IPCMessage.REQUEST_UPLOAD, 
+					OperationManager.class.getMethod("handle_reqUpload", Message.class));
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -109,6 +114,7 @@ public class OperationManager {
 				IPCMessage.NOTHING
 				));
 	}
+	
 	/*
 	 * handle_reqFileList
 	 * FUSE-mounter로부터 fileList 요청을 처리한다.
@@ -128,6 +134,44 @@ public class OperationManager {
 		ExternalService.getInstance().allocateBrcstAnswersQueue(msg.getDetail());
 		ExternalService.sendMessageToFamily(msg);
 	}
+	
+	/*
+	 * handle_reqDownload
+	 * FUSE-mounter로부터의 download 요청을 처리한다.
+	 */
+	public static void handle_reqDownload(Message msg) {
+		getInstance()._handle_reqDownload(msg);
+	}
+	private void _handle_reqDownload(Message msg) {
+	
+	}
+	
+	/*
+	 * handle_reqUpload
+	 * FUSE-mounter로부터의 upload 요청을 처리한다.
+	 */
+	public static void handle_reqUpload(Message msg) {
+		getInstance()._handle_reqUpload(msg);
+	}
+	private void _handle_reqUpload(Message msg) {
+		/*
+		 * 파일 업로드를 브로드캐스팅으로 알리기 위해 ExternalService로
+		 * 메세지를 보낸다.
+		 * 보낸 후에는 ExternalService에서 처리한다.
+		 */
+
+		// 파일 경로를 담아둔다.
+		ExternalService.getInstance().brcstFilePath.put(MESSAGE_DETAIL.BROADCAST_FILE_UPLOAD, msg.getValue());
+
+		Debug.print(TAG, "_handle_reqUpload", "Request upload the file..");
+		msg.setType(MESSAGE_TYPE.BROADCAST);
+		msg.setDetail(MESSAGE_DETAIL.BROADCAST_FILE_UPLOAD);
+		msg.setValue(IpChecker.getPublicIP());
+		
+		ExternalService.getInstance().allocateBrcstAnswersQueue(msg.getDetail());
+		ExternalService.sendMessageToFamily(msg);
+	}
+
 	/*
 	 * private_opendisk
 	 * 
@@ -288,6 +332,7 @@ public class OperationManager {
     	if(fd_in.readLine().compareTo(Message.MESSAGE_TOKEN) == 0) {
     		try {
     			Debug.print(TAG, "HandleMessageFromFuseMounter", "Call handler("+t+")");
+//    			request.getInfo();
 				ipcMsgHandler.get(t).invoke(ipcMsgHandler.get(t), request);
 			} catch (Exception e) {
 				e.printStackTrace();
@@ -345,7 +390,6 @@ public class OperationManager {
 	 * ExternalService로 보내는 메세지의 경우, 특정 클라이언트에게 보내는 것이 아니기 때문에
 	 * broadcast 메세지로 처리한다.
 	 */
-	@SuppressWarnings("unused")
 	public void sendMessageToExternalService(IPCMessage msg) {
 		Debug.print(TAG, "sendMessageToExternalService", "Message : " + msg.getType() + ", " + msg.getValue());
 

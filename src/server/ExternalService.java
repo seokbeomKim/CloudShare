@@ -1,5 +1,6 @@
 package server;
 
+import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.net.InetAddress;
@@ -17,6 +18,8 @@ import debug.MyConstants;
 import disk.CloudShareInfo;
 import disk.DiskInfo;
 import fm.FileListener;
+import fm.FilePartSaver;
+import fm.FilePartSender;
 import message.IPCMessage;
 import message.Message;
 import message.Message.MESSAGE_DETAIL;
@@ -68,8 +71,10 @@ public class ExternalService {
 	// 4. Message Handler
 	MessageHandler msg_handler;
 	
-	// 브로드캐스팅 ANSWER 용 큐
-	HashMap<String, Queue<Message>> brcstAnswerQueue; 
+	// 브로드캐스팅 ANSWER 용 큐	 
+	HashMap<String, Queue<Message>> brcstAnswerQueue;
+	// 파일 관련 브로드캐스팅 시에 transfer할 경로를 담아두는 곳
+	public HashMap<String, String> brcstFilePath;	
 	public HashMap<String, Method> answerMethods;
 	
 	// 나의 가족들
@@ -86,6 +91,7 @@ public class ExternalService {
 		recvQMutex = new Mutex();
 		
 		brcstAnswerQueue = new HashMap<String, Queue<Message>>();
+		brcstFilePath	 = new HashMap<String, String>();
 		answerMethods = new HashMap<String, Method>();
 		
 		// 클라이언트 IP주소 리스트, 소켓 리스트 초기화
@@ -172,6 +178,7 @@ public class ExternalService {
 		try {
 			answerMethods.put(MESSAGE_DETAIL.ANSWER_ATTACH_NEW_NODE, ExternalService.class.getMethod("handler_AttachNode"));
 			answerMethods.put(MESSAGE_DETAIL.ANSWER_FILE_LIST, ExternalService.class.getMethod("handler_FileList"));
+			answerMethods.put(MESSAGE_DETAIL.ANSWER_FILE_UPLOAD, ExternalService.class.getMethod("handler_Upload"));
 		} catch (NoSuchMethodException e) {
 			e.printStackTrace();
 		} catch (SecurityException e) {
@@ -642,7 +649,7 @@ public class ExternalService {
 		// TODO 최적화 가능하다. 추후, for loop를 돌며 검사하는 부분을 쓰레드로 만들어 처리할 시에 
 		// 성능 향상을 기대할 수 있을 것 같다.
 		// 검사가 (정상적으로) 끝났으면 메세지를 통해 새로 받아야 하는 파일 리스트를 만들고 요청한다.
-		for (int i = 0; i < list.size(); i++) {
+		for (int i = list.size() - 1; i >= 0; i--) {
 			if (CloudShareInfo.getInstance().checkFileExist(list.get(i))) {
 				// 만약 파일이 있다면 다운로드 목록에서 제외시켜야 한다.
 				list.remove(i);
@@ -652,14 +659,16 @@ public class ExternalService {
 		Debug.print(TAG, "handle_FileList", "file list: " + list.toString());
 		
 		// 파일 다운로드 준비가 되었다면 메세지를 만들어 보낸다.
-		send(new Message(
-				MESSAGE_TYPE.REQUEST,
-				MESSAGE_DETAIL.REQUEST_FILE_DOWNLOAD,
-				IpChecker.getPublicIP(),
-				msg.getFrom(),
-				list.toString()
-				));
-		
+		if (list.size() != 0) {
+			// 리스트 중 받을 것이 있는 것만 받는다.
+			send(new Message(
+					MESSAGE_TYPE.REQUEST,
+					MESSAGE_DETAIL.REQUEST_FILE_DOWNLOAD,
+					IpChecker.getPublicIP(),
+					msg.getFrom(),
+					list.toString()
+					));
+		}
 		// 메세지를 보낸 후, Fuse-mounter에게 FILE_LIST 요청에 대해서 ACK을 보낸다. 
 		// FILE_DOWNLOAD는 알아서 진행될 것이기 때문에 *
 		OperationManager.getInstance().getMsgQueue().add(new IPCMessage(
@@ -667,6 +676,63 @@ public class ExternalService {
 		
 		// answer 큐 정리
 		brcstAnswerQueue.remove(MESSAGE_DETAIL.BROADCAST_FILE_LIST);
+	}
+	
+	public static void handler_Upload() {
+		getInstance()._handler_Upload();
+	}
+
+	private void _handler_Upload() {
+		// 파일 업로드 브로드캐스팅 메세지 처리 
+		Debug.print(TAG, "_handler_Upload", "Call file upload handler.");
+		Queue<Message> msgQ = brcstAnswerQueue.get(MESSAGE_DETAIL.BROADCAST_FILE_UPLOAD);
+		String file_path = brcstFilePath.get(MESSAGE_DETAIL.BROADCAST_FILE_UPLOAD);
+				
+		// 최대 파일 분할 크기를 정한다. division_cnt는 연관된 클라이언트의 갯수와 같다.
+		int division_cnt = MyConstants.MAXIMUM_DIVISION_CNT > msgQ.size() ? msgQ.size() : MyConstants.MAXIMUM_DIVISION_CNT;
+		
+		// 나 자신도 포함되므로 +1
+		division_cnt++;
+		
+		// 분할 하였을 때 offset과 기본 length를 정한다.
+		File f = new File(file_path);
+		long file_size = f.length();
+		long offset = 0;
+		long div_len = file_size / division_cnt;
+		
+		// 각 클라이언트에게 파일 전송을 요청하고 ACK으로서 공유링크를 얻어온다. 
+		// division_cnt를 하나 뺀 이유는 count의 한 개가 나 자신이기 때문 
+		for (int i = 0; i < division_cnt - 1; i++) {
+			Message msg = msgQ.poll();
+			
+			if (offset + div_len > file_size) {
+				div_len = file_size - offset;
+			}
+			
+			// 상대방에게 파일(부분파일) 보내는 부분
+			Debug.print(TAG, "_handle_Upload", "offset = " + offset + ", div_len = "+ div_len);
+			FilePartSender f_sender = new FilePartSender(msg.getFrom(), f.getPath(), offset, div_len, i);
+			f_sender.start();
+			
+			// 상대방에게 공유링크를 요청한다.
+			// 상대방의 기대 행동은 공유링크를 보내주는 것이다.
+			send(new Message(
+					MESSAGE_TYPE.REQUEST,
+					MESSAGE_DETAIL.REQUEST_FILE_LINK,
+					IpChecker.getPublicIP(),
+					msg.getFrom(),
+					(f.getName() + "." + i)
+					));
+			offset += div_len;
+		}
+
+		// 나머지 부분을 쓰레드를 이용해서 저장한다.
+		FilePartSaver postFileSaver = new FilePartSaver(f.getPath(), offset, division_cnt - 1);
+        postFileSaver.start();
+        
+		// answer 큐 정리
+		brcstAnswerQueue.remove(MESSAGE_DETAIL.BROADCAST_FILE_UPLOAD);
+		brcstFilePath.remove(MESSAGE_DETAIL.BROADCAST_FILE_UPLOAD);
 	}
 
 	/*

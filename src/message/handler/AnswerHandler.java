@@ -8,6 +8,7 @@ import debug.Debug;
 import disk.DiskInfo;
 import message.Message;
 import server.ExternalService;
+import util.CSFileRecorder;
 
 /*
  * Answer 메세지를 처리하는 클래스
@@ -70,6 +71,20 @@ public class AnswerHandler {
 
 	public void fileList(Message msg) {
 		ExternalService.getInstance().receiveBroadcastAnswer(msg);		
+	}
+
+	public void fileUpload(Message msg) {
+		ExternalService.getInstance().receiveBroadcastAnswer(msg);
+	}
+
+	/*
+	 * fileLink
+	 * 상대방으로부터 공유링크를 받으면 이를 바탕으로 메타 데이터를 만든다.
+	 */
+	public void fileLink(Message msg) {
+		Debug.print(TAG, "fileLink", "Received message from " + msg.getFrom());
+		// 공유 링크를 받으면 메타파일에 해당 링크를 추가한다.
+		
 	}
 
 }

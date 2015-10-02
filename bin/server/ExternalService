@@ -58,5 +58,7 @@ allocateBrcstAnswersQueue(MESSAGE_DETAIL.BROADCAST_ATTACH_NEW_NODE)
 ==============================================================
 메세지 타입과 처리 방법 - ANSWER
 ==============================================================
-
-	 	
+	AnswerHandler가 호출되며, 이 때 ExternalService에 answer handler
+로 등록되어 있는 핸들러를 자동으로 호출하게 되어있다. answer에 대한
+핸들러를 등록하기 위해서는 반드시 ExternalService가 초기화될 때 등록해주
+어야 한다.

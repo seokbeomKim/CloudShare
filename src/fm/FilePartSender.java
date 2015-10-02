@@ -20,7 +20,7 @@ import util.MyConverter;
  * 송신자는 클라이언트, 수신자는 msg.getFrom()
  * 파일 리스트는 msg.getValue()
  */
-public class FileSender extends Thread {
+public class FilePartSender extends Thread {
 	private final String TAG = "FileSender";
 	private final int port_num = 7798;
 	private final String TOKEN = "::__::";
@@ -30,6 +30,7 @@ public class FileSender extends Thread {
 	
 	private long offset;
 	private long len;
+	private int num;	// 파일 분할 번호 
 	
 	private final int BUFFER_SIZE = 8192;
 	private final int META_SIZE	= 512;
@@ -37,9 +38,12 @@ public class FileSender extends Thread {
 	String target;
 	String filename;
 
-	public FileSender(String to, String filename) {
+	public FilePartSender(String to, String filename, long offset, long len, int num) {
 		this.target = to;
 		this.filename = filename;
+		this.offset = offset;
+		this.len = len;
+		this.num = num;
 	}
 
 	// 파일 전송
@@ -58,18 +62,20 @@ public class FileSender extends Thread {
 			// 소켓 관련 스트림 초기화
 			bos = new BufferedOutputStream(s.getOutputStream());
 			
-			String fp = CloudShareInfo.getInstance().getCacheDirectory() + File.separator + filename;	// file path
+			String fp = filename;	// file path
+			String fnameWithNum = fp + "." + num;
+			File tFile = new File (fnameWithNum);
 			File myFile = new File (fp);
 				
 			byte [] mybytearray  = new byte [BUFFER_SIZE];
 				
 			fis = new FileInputStream(myFile);
 	        bis = new BufferedInputStream(fis);
-	        System.out.println("Sending " + fp + "(" + myFile.length() + " bytes)");
-	        System.out.println("File info: name = " + myFile.getName() + ", size = " + myFile.length());
+	        System.out.println("Sending " + fp + "(" + len + " bytes)");
+	        System.out.println("File info: name = " + myFile.getName() + ", size = " + len);
 
 	        // 처음 파일 이름과 파일 크기를 알려준다.
-	        String metaStr = (int)myFile.length() + "\'" + filename;
+	        String metaStr = (int)len + "\'" + tFile.getName() + "\'" + "PartDw";
 	        System.out.println("metadata = " + metaStr);
 	        byte[] metaData = new byte[META_SIZE];
 	        metaData = Arrays.copyOf(metaStr.getBytes(Charset.forName("UTF-8")), META_SIZE);
@@ -78,8 +84,23 @@ public class FileSender extends Thread {
 	        bos.flush();
 
 	        // 그 후에 파일 전송
-	        while ((bytesRead = bis.read(mybytearray)) > 0) {
+	        int total_read = 0;
+	        int try_size = BUFFER_SIZE;
+	        
+	        if (BUFFER_SIZE > len) {
+	        	try_size = (int)(len);
+	        }
+	        while ((bytesRead = bis.read(mybytearray, (int)offset, try_size)) > 0) {
                 bos.write(mybytearray, 0, bytesRead);
+                total_read += bytesRead;
+                offset += bytesRead;
+                if (total_read == (int)len) {
+                	// 목표치만큼 읽었으면 끝낸다
+                	break;
+                }
+                if (offset + BUFFER_SIZE > len) {
+    	        	try_size = (int)(len - offset);
+    	        }
             }
             bos.flush();
 

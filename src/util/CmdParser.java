@@ -12,7 +12,6 @@ import org.kohsuke.args4j.CmdLineParser;
 import org.kohsuke.args4j.Option;
 
 import debug.Debug;
-import fm.FileSender;
 
 /*
  * 사용자로부터 받은 커맨드 처리 클래스 
@@ -75,8 +74,15 @@ public class CmdParser {
 	    		if (arguments.get(1).compareTo("filetransfer") == 0) {
 	    			// file transfer 테스트 
 	    			Debug.print(TAG, "handle", "Debug: filetransfer");
-	    			FileSender sender = new FileSender("192.168.56.1", "test.cs");
-	    			sender.start();
+//	    			FileSender sender = new FileSender("192.168.56.1", "test.cs", 0, 0);
+//	    			sender.start();
+	    		}
+	    		else if (arguments.get(1).compareTo("add_slink") == 0) {
+	    			// file transfer 테스트 
+	    			Debug.print(TAG, "handle", "Debug: add share link to meta file");
+	    			CSFileRecorder.addLink("TEST_UPLOADFILE", "testlin", 0);
+//	    			FileSender sender = new FileSender("192.168.56.1", "test.cs", 0, 0);
+//	    			sender.start();
 	    		}
 	    	}
 

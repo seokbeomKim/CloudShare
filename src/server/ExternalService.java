@@ -20,6 +20,7 @@ import disk.DiskInfo;
 import fm.FileListener;
 import fm.FilePartSaver;
 import fm.FilePartSender;
+import fm.FileSender;
 import message.IPCMessage;
 import message.Message;
 import message.Message.MESSAGE_DETAIL;
@@ -174,11 +175,13 @@ public class ExternalService {
 		msg_receiver.start();
 		msg_handler.start();
 		
-		// ANSWER 핸들러 등록
+		// ANSWER 핸들러 등록 (브로드캐스트에 대한 클라이언트의 응답 처리를 위한 메서드)
 		try {
 			answerMethods.put(MESSAGE_DETAIL.ANSWER_ATTACH_NEW_NODE, ExternalService.class.getMethod("handler_AttachNode"));
 			answerMethods.put(MESSAGE_DETAIL.ANSWER_FILE_LIST, ExternalService.class.getMethod("handler_FileList"));
 			answerMethods.put(MESSAGE_DETAIL.ANSWER_FILE_UPLOAD, ExternalService.class.getMethod("handler_Upload"));
+			answerMethods.put(MESSAGE_DETAIL.ANSWER_NEW_METAFILE, ExternalService.class.getMethod("handler_NewMetaFile", 
+					String.class));
 		} catch (NoSuchMethodException e) {
 			e.printStackTrace();
 		} catch (SecurityException e) {
@@ -734,6 +737,32 @@ public class ExternalService {
 		brcstAnswerQueue.remove(MESSAGE_DETAIL.BROADCAST_FILE_UPLOAD);
 		brcstFilePath.remove(MESSAGE_DETAIL.BROADCAST_FILE_UPLOAD);
 	}
+	
+	public static void handler_NewMetaFile(String type) {
+		getInstance()._handler_NewMetaFile(type);
+	}
+
+	private void _handler_NewMetaFile(String type) {
+		Debug.print(TAG, "handler_NewMetaFile", "type is " + type);
+		
+		// 현재 파라미터로 들어온 type값은 [MESSAGE_DETAIL] : [Metadata file name]
+		// 과 같은 형태로 되어있다.
+		String[] v = type.split(":");
+		String meta_fname = v[1];
+		
+		// 새로운 메타파일을 클라이언트들에게 보낸다.
+		Queue<Message> msgQ = brcstAnswerQueue.get(type);
+		
+		for (int i = 0; i < msgQ.size(); i++) {
+			Message msg = msgQ.poll();
+			
+			FileSender f_sender = new FileSender(msg.getFrom(), meta_fname + ".cs");
+			f_sender.start();
+		}
+		
+		// answer 큐 정리
+		brcstAnswerQueue.remove(type);
+	}
 
 	/*
 	 * makeClientToFamily
@@ -757,4 +786,5 @@ public class ExternalService {
 	public void setFile_listener(FileListener file_listener) {
 		this.file_listener = file_listener;
 	}
+
 }

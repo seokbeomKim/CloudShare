@@ -27,11 +27,14 @@ public class Message {
 		public static final String ANSWER_FILE_LINK	 		= "FileLink";
 		public static final String ANSWER_CLIENT_LIST		= "ClientList";
 		public static final String ANSWER_FILE_UPLOAD 		= "Upload";
+		public static final String ANSWER_NEW_METAFILE 		= "NewMetaFile";
+
 		
 		public static final String BROADCAST_CLIENT_EXIT	= "ClientExit";
 		public static final String BROADCAST_ATTACH_NEW_NODE = "AttachNewNode";
 		public static final String BROADCAST_FILE_LIST		= "FileList";
 		public static final String BROADCAST_FILE_UPLOAD 	= "Upload";
+		public static final String BROADCAST_NEW_METAFILE 	= "NewMetaFile";
 		
 		public static final String OPERATION_REFRESH_STREAM	= "RefreshStream";
 	};
@@ -51,6 +54,7 @@ public class Message {
 	private String detail;				// 메세지 내용 1 (구체적 타입) 
 	
 	private String value;				// 메세지 내용 2 (메세지 값)
+	private String hide;				// 숨겨진 내용 
 	
 	public Message() {}
 	
@@ -68,6 +72,16 @@ public class Message {
 		this.setTo(to);
 		this.setValue(value);
 		this.setDetail(specific_type);
+		this.setHide(null);
+	}
+	
+	public Message(String msgtype, String specific_type, String from, String to, String value, String hide) {
+		this.setType(msgtype);
+		this.setFrom(from);
+		this.setTo(to);
+		this.setValue(value);
+		this.setDetail(specific_type);
+		this.setHide(hide);
 	}
 	
 	public Message(Message message) {
@@ -84,7 +98,8 @@ public class Message {
                 + "\ndetail= " + getDetail()
 			    + "\nfrom  = " + getFrom()
 			    + "\nto    = " + getTo() 
-			    + "\nvalue = " + getValue());
+			    + "\nvalue = " + getValue()
+			    + "\nhide  = " + getHide());
 	}
 	
 	public static enum WHAT {
@@ -101,7 +116,7 @@ public class Message {
 	 */
 	public static boolean is(WHAT what, String A, String B) {
 		boolean r = false;
-		if (A.compareTo(B) == 0) {
+		if (A.startsWith(B)) {
 			r = true;
 		}
 		return r;
@@ -166,5 +181,13 @@ public class Message {
 
 	public void setValue(String value) {
 		this.value = value;
+	}
+
+	public String getHide() {
+		return hide;
+	}
+
+	public void setHide(String hide) {
+		this.hide = hide;
 	}
 }

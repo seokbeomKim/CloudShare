@@ -6,6 +6,7 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.LinkedList;
 
 import debug.Debug;
 import disk.CloudShareInfo;
@@ -22,10 +23,10 @@ public class CSFileRecorder {
 		}
 		return instance;
 	}
-	
-	public static void createFile(String name) {
+		
+	public static void createFile(String name, int num) {
 		try {
-			getInstance()._createFile(name);
+			getInstance()._createFile(name, num);
 		} catch (IOException e) {
 			Debug.error("CSFileRecorder", "createFile", "Failed to create meta file ("+name+")");
 			e.printStackTrace();
@@ -37,7 +38,7 @@ public class CSFileRecorder {
 	 * 메타 파일을 생성한다. 위치는 .CloudShare
 	 * @param fname: 메타파일 이름 
 	 */
-	private void _createFile(String fname) throws IOException {		
+	private void _createFile(String fname, int part_num) throws IOException {		
 		String metaPath = CloudShareInfo.getInstance().getCacheDirectory() + fname + ".cs";
 		Debug.print(TAG, "createFile", "Create meta file (" + fname + ") at " + metaPath);
 
@@ -118,4 +119,64 @@ public class CSFileRecorder {
 		tempFile.renameTo(metaFile);
 	}
 
+	/*
+	 * 부분파일 이름으로부터 메타파일의 이름을 알아낸다.
+	 */
+	public static String getMetaFileNameFromPartFileName(String pf_name) {
+		return pf_name.substring(0, pf_name.length() - 2);
+	}
+
+	public static boolean checkCompletedMetaFile(String metaFile) {
+		return getInstance()._checkCompleteMetaFile(metaFile);
+	}
+
+	private boolean _checkCompleteMetaFile(String metaFileName) {
+		// 가장 밑의 줄의 내용이 분할 파일의 마지막을 나타내는 링크이므로 이를 이용하여
+		// 링크를 완전하게 갖고 있는지 확인한다.
+		String mfPath = CloudShareInfo.getInstance().getCacheDirectory() + metaFileName;
+		File mf = new File(mfPath);
+		try {
+			BufferedReader r = new BufferedReader(new FileReader(mf));
+			String s;
+			LinkedList<String> values = new LinkedList<String>();
+			
+			while ( (s = r.readLine()) != null ) {
+				values.add(s);
+			}
+			
+			// 다 넣고 난 뒤에 검사
+			String temp = values.getFirst();
+			Debug.error(TAG, "_checkCompleteMetaFile", "last line is " + temp);
+			String[] v = temp.split(": ");
+			String n = v[0].trim().toString();
+			int max = Integer.parseInt(n.substring(n.length() - 1));
+			boolean[] checkList = new boolean[max + 1];
+			
+			for (int i = 0; i < values.size(); i++) {
+				// 루프 돌면서 검사
+				temp = values.get(i);
+				v = temp.split(": ");
+				n = v[0].trim().toString();
+				int idx = Integer.parseInt(n.substring(n.length() - 1));
+				checkList[idx] = true;
+			}
+			
+			for (int i = 0; i < checkList.length; i++) {
+				if (checkList[i] == false) {
+					r.close();
+					return false;
+				}
+			}
+			
+			r.close();
+			return true;
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		
+		
+		return false;
+	}
 }

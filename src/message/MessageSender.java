@@ -125,6 +125,7 @@ public class MessageSender extends Thread {
 			w.println(msg.getFrom());
 			w.println(msg.getTo());
 			w.println(msg.getValue());
+			w.println(msg.getHide());
 		} catch (IOException e) {
 			System.err.println(e);
 			// 클라이언트 소켓 리스트에 문제가 생긴 것이므로 처리한다.

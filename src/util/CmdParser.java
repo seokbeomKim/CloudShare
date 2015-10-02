@@ -84,6 +84,9 @@ public class CmdParser {
 //	    			FileSender sender = new FileSender("192.168.56.1", "test.cs", 0, 0);
 //	    			sender.start();
 	    		}
+	    		else if (arguments.get(1).compareTo("check_metafile") == 0) {
+	    			CSFileRecorder.checkCompletedMetaFile("TEST_UPLOADFILE.cs");
+	    		}
 	    	}
 
 	    	else {

@@ -61,7 +61,7 @@ public class FilePartSaver extends Thread {
 		}
 		
 		// 나머지 부분을 클라우드에 저장하고 나면, 메타파일을 만들어서 저장한다.
-        CSFileRecorder.createFile(f.getName());
+        CSFileRecorder.createFile(f.getName(), num);
         String slink = CloudLogReader.getLink(f.getName() + "." + num);
         Debug.print(TAG, "run", "slink is " + slink);
         CSFileRecorder.addLink(f.getName(), slink, num);

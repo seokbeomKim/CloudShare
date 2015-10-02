@@ -100,6 +100,9 @@ public class MessageHandler extends Thread {
 		else if (Message.is(WHAT.DETAIL, msg.getDetail(), MESSAGE_DETAIL.ANSWER_FILE_LINK)) {
 			ansHandler.fileLink(msg);
 		}
+		else if (Message.is(WHAT.DETAIL, msg.getDetail(), MESSAGE_DETAIL.ANSWER_NEW_METAFILE)) {
+			ansHandler.newMetaFile(msg);
+		}
 	}
 	
 	private void handle_broadcast(Message msg) {
@@ -116,6 +119,10 @@ public class MessageHandler extends Thread {
 		else if (Message.is(WHAT.DETAIL, msg.getDetail(), MESSAGE_DETAIL.BROADCAST_FILE_UPLOAD)) {
 			// 파일 업로드 브로드캐스팅 메세지를 받았을 때
 			brcstHandler.fileUpload(msg);
+		}
+		else if (Message.is(WHAT.DETAIL, msg.getDetail(), MESSAGE_DETAIL.BROADCAST_NEW_METAFILE)) {
+			// 새로운 메타파일이 있다는 브로드캐스팅 메세지ᅟ를 받았을 때 
+			brcstHandler.newMetaFile(msg);
 		}
 	}
 	

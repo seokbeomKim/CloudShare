@@ -18,7 +18,7 @@ public class IPCMessage {
 	public static final String REQUEST_CHECK_CONNECTION	= "request_checkconnection";
 	public static final String ACK_CHECK_CONNECTION		= "ack_checkconnection";
 	public static final String ACK_VALUE					= "ack_value";
-	public static final String NOTHING						= "nothing";
+	public static final String NOTHING					= "nothing";
 	
 	/*
 	 * 메세지 구성

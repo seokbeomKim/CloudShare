@@ -1,9 +1,11 @@
 package message.handler;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.Queue;
 
 import debug.Debug;
 import message.Message;
+import message.Message.MESSAGE_DETAIL;
 import server.ExternalService;
 
 /*
@@ -38,7 +40,17 @@ public class BrcstAnsHandler extends Thread {
 			ExternalService.getInstance().answerMethods.get(type).invoke(null);
 		} catch (Exception e) {
 			Debug.error(TAG, "run", "Error occur! message type is " + type);
-			e.printStackTrace();
+			
+			// 핸들러가 정해지지 않은 경우 메타파일인지 확인한다.
+			String[] v = type.split(":");
+			if (v[0].compareTo(MESSAGE_DETAIL.BROADCAST_NEW_METAFILE) == 0) {
+				try {
+					ExternalService.getInstance().answerMethods.get(MESSAGE_DETAIL.BROADCAST_NEW_METAFILE).invoke(
+							new String(), type);
+				} catch (Exception e1) {
+					e1.printStackTrace();
+				} 
+			}
 		}
 	}
 }

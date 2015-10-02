@@ -7,8 +7,11 @@ import java.util.regex.PatternSyntaxException;
 import debug.Debug;
 import disk.DiskInfo;
 import message.Message;
+import message.Message.MESSAGE_DETAIL;
+import message.Message.MESSAGE_TYPE;
 import server.ExternalService;
 import util.CSFileRecorder;
+import util.IpChecker;
 
 /*
  * Answer 메세지를 처리하는 클래스
@@ -78,13 +81,43 @@ public class AnswerHandler {
 	}
 
 	/*
-	 * fileLink
+	 * fileLink [request-answer]
 	 * 상대방으로부터 공유링크를 받으면 이를 바탕으로 메타 데이터를 만든다.
 	 */
 	public void fileLink(Message msg) {
 		Debug.print(TAG, "fileLink", "Received message from " + msg.getFrom());
 		// 공유 링크를 받으면 메타파일에 해당 링크를 추가한다.
+		String m = msg.getValue();
+		String[] v = m.split(": ");
 		
+		String metaFile = CSFileRecorder.getMetaFileNameFromPartFileName(v[0]);
+		int num = Integer.parseInt(v[0].substring(v[0].length() - 1));
+		CSFileRecorder.addLink(metaFile, v[1], num);
+		
+		// 공유링크를 담아놓은 후에는 파일이 전부 있는지 확인한다.
+		// 전부 있는 경우에는 브로드캐스팅을 한다.
+		// 이 때 MESSAGE_DETAIL 부분에 파일명을 붙여서 보낸다. 
+		if (CSFileRecorder.checkCompletedMetaFile(metaFile + ".cs")) {
+			ExternalService.getInstance().allocateBrcstAnswersQueue(MESSAGE_DETAIL.BROADCAST_NEW_METAFILE + ":" + metaFile);
+			ExternalService.sendMessageToFamily(new Message(
+					MESSAGE_TYPE.BROADCAST,
+					MESSAGE_DETAIL.BROADCAST_NEW_METAFILE,
+					IpChecker.getPublicIP(),
+					null,
+					IpChecker.getPublicIP(),
+					metaFile	// hidden value
+					));
+		}
+		else {
+			Debug.error(TAG, "fileLink", "Failed to broadcast new meta file..(not completed)");
+		}
+	}
+
+	/*
+	 * newMetaFile [broadcast-answer]
+	 */
+	public void newMetaFile(Message msg) {
+		ExternalService.getInstance().receiveBroadcastAnswer(msg);		
 	}
 
 }

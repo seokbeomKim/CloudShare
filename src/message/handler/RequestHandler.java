@@ -93,12 +93,13 @@ public class RequestHandler {
 		String fname = msg.getValue();
 		shared_link = CloudLogReader.getLink(fname);
 		
+		String v = fname + ": " + shared_link;
 		Message answer_clientList = new Message(
 				MESSAGE_TYPE.ANSWER,
 				MESSAGE_DETAIL.ANSWER_FILE_LINK,
 				IpChecker.getPublicIP(),
 				msg.getFrom(),
-				shared_link
+				v
 				);
 		ExternalService.send(answer_clientList);		
 	}

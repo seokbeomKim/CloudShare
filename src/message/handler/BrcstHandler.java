@@ -77,7 +77,6 @@ public class BrcstHandler {
 	 * 파일 업로드 요청 브로드 캐스트 메세지를 받았을 때 호출되는 메서드
 	 */
 	public void fileUpload(Message msg) {
-		// 파일 리스트 요청을 전달한다.
 		List<Client> cl = ExternalService.getClientList();
 		Message m = new Message(msg);
 		m.setFrom(IpChecker.getPublicIP());
@@ -97,6 +96,32 @@ public class BrcstHandler {
 				null
 				);
 		ExternalService.send(ans);		
+	}
+
+	/*
+	 * 새로운 메타파일이 있다는 브로드캐스트 메세지를 받았을 때 호출되는 메서드 
+	 */
+	public void newMetaFile(Message msg) {
+		List<Client> cl = ExternalService.getClientList();
+		Message m = new Message(msg);
+		m.setFrom(IpChecker.getPublicIP());
+		
+		for (int i = 0; i < cl.size(); i++) {
+			if (cl.get(i).getIpAddr().compareTo(msg.getFrom()) != 0) {
+				// 메세지 송신자는 제외
+				m.setTo(cl.get(i).getIpAddr());
+				ExternalService.send(m);
+			}
+		}
+		Message ans = new Message(
+				MESSAGE_TYPE.ANSWER,
+				MESSAGE_DETAIL.ANSWER_NEW_METAFILE + ":" + msg.getHide(),
+				IpChecker.getPublicIP(),
+				msg.getValue(),
+				msg.getHide(),
+				msg.getHide()
+				);
+		ExternalService.send(ans);	
 	}
 
 }

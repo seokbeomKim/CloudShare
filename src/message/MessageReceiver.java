@@ -74,6 +74,7 @@ public class MessageReceiver extends Thread {
 					obj.setFrom(is.get(i).readLine());
 					obj.setTo(is.get(i).readLine());
 					obj.setValue(is.get(i).readLine());
+					obj.setHide(is.get(i).readLine());
 					receive(obj);
 					//Debug.print(TAG, "readMessage", "Read message: ");
 					return true;

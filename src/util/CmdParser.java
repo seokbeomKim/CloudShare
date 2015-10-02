@@ -87,6 +87,14 @@ public class CmdParser {
 	    		else if (arguments.get(1).compareTo("check_metafile") == 0) {
 	    			CSFileRecorder.checkCompletedMetaFile("TEST_UPLOADFILE.cs");
 	    		}
+	    		else if (arguments.get(1).compareTo("download_file") == 0) {
+	    			try {
+//						FileDownloaderFromURL.downloadFile("http://me2.do/xm81SLTf");
+					} catch (Exception e) {
+						Debug.error("FileDownloaderFromURL", "DEBUG", "Failed to download file.");
+						e.printStackTrace();
+					}
+	    		}
 	    	}
 
 	    	else {

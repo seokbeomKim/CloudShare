@@ -43,17 +43,22 @@ public class FilePartSaver extends Thread {
 			if (try_size + offset > f.length()) {
 				try_size = (int)(f.length() - offset);
 			}
+			int current = 0;
 			while ( (bytesRead = bis.read(buffer, offset, try_size)) > 0 ) {
-				bos.write(buffer, 0, bytesRead);
+				bos.write(buffer, current, bytesRead);
 				
 				offset += bytesRead;
+				current += bytesRead;
 				if (try_size + offset > f.length()) {
 					try_size = (int)(f.length() - offset);
 				}
 			}
+			bos.flush();
 			
 			// 카피한 후에는 원래 복사했던 완전파일을 삭제한다.
 			f.delete();
+			bis.close();
+			fos.close();
 		} catch (FileNotFoundException e) {
 			e.printStackTrace();
 		} catch (IOException e) {

@@ -44,7 +44,11 @@ public class FilePartSaver extends Thread {
 				try_size = (int)(f.length() - offset);
 			}
 			int current = 0;
-			while ( (bytesRead = bis.read(buffer, offset, try_size)) > 0 ) {
+
+			// read위치 변경
+			bis.skip(offset);
+
+			while ( (bytesRead = bis.read(buffer, 0, try_size)) > 0 ) {
 				bos.write(buffer, current, bytesRead);
 				
 				offset += bytesRead;

@@ -2,6 +2,7 @@ package operation;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -21,12 +22,14 @@ import org.json.simple.parser.JSONParser;
 import com.sun.corba.se.impl.orbutil.concurrent.Mutex;
 
 import debug.Debug;
+import disk.CloudShareInfo;
 import disk.DiskInfo;
 import message.IPCMessage;
 import message.Message;
 import message.Message.MESSAGE_DETAIL;
 import message.Message.MESSAGE_TYPE;
 import server.ExternalService;
+import util.FileDownloaderFromURL;
 import util.IpChecker;
 
 /*
@@ -143,7 +146,41 @@ public class OperationManager {
 		getInstance()._handle_reqDownload(msg);
 	}
 	private void _handle_reqDownload(Message msg) {
-	
+		Debug.print(TAG, "_handle_reqDownload", "Request download..");
+		msg.getInfo();
+
+		// 메타 파일로부터 각각의 파일을 다운로드 받아서 합친다.
+		String mfPath = msg.getValue();
+		File mFile = new File(mfPath);
+		
+		// 메타 파일로부터 파일 링크를 얻은 후 $HOME/Download 폴더에 저장한다.
+		try {
+			FileReader fr = new FileReader(mFile);
+			BufferedReader r = new BufferedReader(fr);
+			String s;
+			while ( (s = r.readLine()) != null ) {
+				String[] v = s.split(": ");
+				String url = v[1];
+				String fname = v[0];
+				String fpath = System.getenv("HOME") + File.separator + "Downloads" + File.separator + fname;
+				
+				if (url != null) {
+					// url이 유효할 때
+					// wget 이용 
+					FileDownloaderFromURL.downloadFile(url, new File(fpath));
+				}
+			}
+			r.close();
+
+			// 저장 후에는 합친다. 
+			FileDownloaderFromURL.fileCombiner(mFile.getName().replace(".cs", ""));
+		} catch (FileNotFoundException e) {
+			e.printStackTrace();
+		} catch (IOException e) {
+			e.printStackTrace();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
 	}
 	
 	/*

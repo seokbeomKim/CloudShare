@@ -2,7 +2,6 @@ package util;
 
 import java.io.File;
 
-import debug.Debug;
 import disk.DiskInfo;
 import operation.OperationManager;
 import server.ExternalService;
@@ -17,6 +16,7 @@ import server.ExternalService;
  * 실행 중이라면 프로그램을 종료한다.
  */
 public class DiskOpener {
+	@SuppressWarnings("unused")
 	private final String TAG = "DiskOpener";
 	private String disk_path;
 	
@@ -32,20 +32,18 @@ public class DiskOpener {
 		File f = new File(env_path);
 		
 		// Argument로 받은 경로에 있는 디스크 파일을 체크하고 쓰레드 실행
-		if (f.exists()) {
-			Debug.print(TAG, "diskOpen", "Succeed to check file existance at " + env_path);
-			
+		if (f.exists()) {			
 			// 파일이 존재하는 경우에는 파일의 내용을 통해서 환경변수를 설정한다. 			
 			setDisk_path(f.getAbsolutePath());
 			
 			// ShutdownHooker 실행
 			// (종료 이벤트 처리용)
-//			Runtime.getRuntime().addShutdownHook(new ShutdownHooker());
+			Runtime.getRuntime().addShutdownHook(new ShutdownHooker());
 			
 			// OperationManager를 통해 OpenDisk를 호출한다.
 			// OperationManager가 메인 쓰레드로 실행되고 external service는 
 			// 다른 곳에서 실행되어야 한다.
-			OperationManager.OpenDisk(env_path);
+			OperationManager.openDisk(env_path);
 			
 			// ExternalService를 실행한다.
 			// 여기서는 ExternalService 객체 초기화와 관련 쓰레드를 실행한다.
@@ -55,7 +53,7 @@ public class DiskOpener {
 			OperationManager.startOperator();
 			
 			// Fuse-mounter 실행 
-//			OperationManager.mount();
+			// OperationManager.mount();
 
 			return true;
 		}
@@ -68,13 +66,10 @@ public class DiskOpener {
 	/*
 	 * 파일 경로의 특별 문자(i.e. ~)들을 처리한다.
 	 */
-	private String getPathWithEnv(String disk_path) {
-		Debug.print(TAG, "getPathWithEnv", "disk_path = " + disk_path);
-		
+	private String getPathWithEnv(String disk_path) {		
 		String rValue = disk_path;
 		rValue = rValue.replaceAll("~", System.getenv("PWD"));
 		
-		Debug.print(TAG, "getPathWithEnv", "return value = " + rValue);
 		return rValue;
 	}
 	/**

@@ -13,9 +13,6 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLConnection;
-
-import org.apache.commons.io.FileUtils;
-
 import debug.Debug;
 import debug.MyConstants;
 

@@ -9,6 +9,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 
 import debug.Debug;
+import debug.MyConstants;
 import disk.CloudShareInfo;
 import util.CSFileRecorder;
 import util.CloudLogReader;
@@ -38,23 +39,24 @@ public class FilePartSaver extends Thread {
 			BufferedOutputStream bos = new BufferedOutputStream(fos);
 			
 			int bytesRead;
-			byte[] buffer = new byte[256];
+			byte[] buffer = new byte[MyConstants.FILE_BUFFER_SIZE];
 			int try_size = buffer.length;	// 읽을 바이트 크기
 			if (try_size + offset > f.length()) {
 				try_size = (int)(f.length() - offset);
 			}
-			int current = 0;
 
 			// read위치 변경
 			bis.skip(offset);
 
 			while ( (bytesRead = bis.read(buffer, 0, try_size)) > 0 ) {
-				bos.write(buffer, current, bytesRead);
+				bos.write(buffer, 0, bytesRead);
 				
 				offset += bytesRead;
-				current += bytesRead;
 				if (try_size + offset > f.length()) {
 					try_size = (int)(f.length() - offset);
+					if (try_size > MyConstants.FILE_BUFFER_SIZE) {
+						try_size = MyConstants.FILE_BUFFER_SIZE;
+					}
 				}
 			}
 			bos.flush();

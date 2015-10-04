@@ -14,7 +14,6 @@ import java.util.LinkedList;
 
 import debug.Debug;
 import debug.MyConstants;
-import util.IpChecker;
 
 public class CloudShareInfo {
 	private final String TAG = "CloudShareInfo";
@@ -65,18 +64,15 @@ public class CloudShareInfo {
 				"mount -l | grep NDriveFUSE | awk '{print $3}'"
 				};
 
-		Debug.print(TAG, "getCloudMountPoint", "command = " + cmd);
 		Process proc = rt.exec(cmd);
 
 		BufferedReader stdInput = new BufferedReader(new 
 		     InputStreamReader(proc.getInputStream()));
 
 		// read the output from the command
-		System.out.println("Here is the standard output of the command:\n");
 		String s = null;
 		while ((s = stdInput.readLine()) != null) {
 		    this.setCloud_mntPoint(s);
-		    System.out.println(s);
 		}
 		// 마지막으로, 받은 값 검사
 		if (this.cloud_mntPoint == null) {

@@ -1,6 +1,5 @@
 package message.handler;
 
-import java.io.File;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -65,7 +64,6 @@ public class RequestHandler {
 		
 		// Handler에서 파일 다운로드/업로드의 경우 시간이 오래 걸릴 수 있으므로 쓰레드를 만들어 처리
 		for (int i = 0; i < fileList.size(); i++) {
-			File f = new File(fileList.get(i));
 			FileSender f_sender = new FileSender(msg.getFrom(), fileList.get(i));
 			f_sender.start();	
 		}

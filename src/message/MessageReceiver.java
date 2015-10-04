@@ -27,7 +27,7 @@ public class MessageReceiver extends Thread {
 		is = new LinkedList<>();
 	}
 	
-	private long latency = 1000;
+	private long latency = 500;
 	
 	@Override
 	public void run() {
@@ -66,7 +66,7 @@ public class MessageReceiver extends Thread {
 					// MESSAGE_TYPE으로 PING이 들어올 수 있으니 확인
 					String r = is.get(i).readLine();
 					if (r.compareTo(MESSAGE_TYPE.PING) == 0) {
-						Debug.print(TAG, "readMessage", "client sent PING. Ignore this message.");
+						// Debug.print(TAG, "readMessage", "client sent PING. Ignore this message.");
 						return false;
 					}
 					obj.setType(r);
@@ -91,16 +91,13 @@ public class MessageReceiver extends Thread {
 	 * receiver가 가지고 있는 스트림의 리스트를 갱신한다.
 	 */
 	public void refreshStream() {
-//		Debug.print(TAG, "refreshStream", "Refresh the stream... you have " + ExternalService.getInstance().getClientSocket().size()
-//				+ " socket(s).");
-		
 		if (needToBeRefresh == true ||
 				ExternalService.getClientList().size() != is.size()) {
 			is.clear();
 			Debug.print(TAG, "refreshStream", "Refresh client input stream from socket...");
 			
 			for (int i = 0; i < ExternalService.getClientList().size(); i++) {
-				Debug.print(TAG, "refreshStream", "client socket at " + i + "'s ip address: " 
+				Debug.print(TAG, "refreshStream", "client socket(at " + i + ")'s ip address: " 
 						+ ExternalService.getClientList().get(i).getIpAddr());
 				try {
 					is.add(new BufferedReader(

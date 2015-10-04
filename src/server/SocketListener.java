@@ -19,10 +19,9 @@ public class SocketListener extends Thread {
 	
 	@Override
 	public void run() {
-		Debug.print(TAG, "run", "Listening socket connection request...");
+		// 서버소켓을 초기화 부분
 		if (s == null) {
 			try {
-				Debug.print(TAG, "run", "Try to make new ServerSocket instance..");
 				s = new ServerSocket(portnum_es);
 			} catch (IOException e) {
 				System.err.println("Failed to allocate ServerSocket.");
@@ -35,12 +34,16 @@ public class SocketListener extends Thread {
 			}
 		}
 		
+		// ==============================================================
+		// 소켓 연결 Listening 
+		// 새로운 클라이언트가 접속을 하면 클라이언트 리스트에 추가한다.
+		// ==============================================================
+
 		try {
 			while (true) {
 				try {
-					Debug.print(TAG, "run", "Waiting new socket request...");
 					addClientSocket(s.accept());
-					Debug.print(TAG, "run", "Succeed to get new socket instance");
+					Debug.print(TAG, "run", "Allocate new socket instance for new client.");
 
 				} catch (Exception e) {
 					e.getStackTrace();
@@ -55,14 +58,12 @@ public class SocketListener extends Thread {
 	/*
 	 * addClientSocket: 
 	 * 1. 새로운 소켓을 clientsocket리스트에 ExternalService을 통해 추가한다.
-	 * 2. 소켓의 IP 주소를 clientList에 추가한ㄷ.
+	 * 2. 소켓의 IP 주소를 clientList에 추가한다.
 	 */
 	private void addClientSocket(Socket s) {
 		try {
-			ExternalService.getInstance().getMutexClientList().acquire();
 			ExternalService.addClient(
 					new Client(s.getInetAddress().getHostAddress(), s));
-			ExternalService.getInstance().getMutexClientList().release();			
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}

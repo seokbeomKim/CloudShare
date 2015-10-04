@@ -4,16 +4,10 @@ import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.IOException;
 import java.net.Socket;
 import java.nio.charset.Charset;
 import java.util.Arrays;
-import java.util.LinkedList;
-
 import debug.Debug;
-import disk.CloudShareInfo;
-import message.Message;
-import util.MyConverter;
 
 /*
  * 메세지의 타겟으로 파일을 보낸다.
@@ -23,10 +17,6 @@ import util.MyConverter;
 public class FilePartSender extends Thread {
 	private final String TAG = "FileSender";
 	private final int port_num = 7798;
-	private final String TOKEN = "::__::";
-	
-	private final int connect_try = 10;	// 최대 연결 시도 횟수 
-	private final long retry_time = 1000;	// 재시도 하는데 걸리는 시간
 	
 	private long offset;
 	private long len;
@@ -90,7 +80,10 @@ public class FilePartSender extends Thread {
 	        if (BUFFER_SIZE > len) {
 	        	try_size = (int)(len);
 	        }
-	        while ((bytesRead = bis.read(mybytearray, (int)offset, try_size)) > 0) {
+
+	        bis.skip(offset);
+	        Debug.print(TAG, "run", "offset = " + offset + ", len = " + len + ", try_size = " + try_size);
+	        while ((bytesRead = bis.read(mybytearray, 0, try_size)) > 0) {
                 bos.write(mybytearray, 0, bytesRead);
                 total_read += bytesRead;
                 offset += bytesRead;

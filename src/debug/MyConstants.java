@@ -14,5 +14,6 @@ public class MyConstants {
 	public static final int NO_NDRIVE_MNTPOINT = 5;
 
 	// 기타 설정 관련
-	public static final int MAXIMUM_DIVISION_CNT = 5;		// 최대 파일 분할 횟수 
+	public static final int MAXIMUM_DIVISION_CNT = 5;		// 최대 파일 분할 횟수
+	public static final int FILE_BUFFER_SIZE = 8192;
 }

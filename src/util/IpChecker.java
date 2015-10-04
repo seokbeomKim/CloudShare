@@ -96,7 +96,6 @@ public class IpChecker {
 			    while (ee.hasMoreElements())
 			    {
 			        InetAddress i = (InetAddress) ee.nextElement();
-			        System.out.println(i.getHostAddress());
 		        	ip = i.getHostAddress();
 			    }
 			    

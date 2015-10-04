@@ -1,6 +1,5 @@
 package message.handler;
 
-import java.lang.reflect.InvocationTargetException;
 import java.util.Queue;
 
 import debug.Debug;
@@ -26,7 +25,7 @@ public class BrcstAnsHandler extends Thread {
 
 	@Override
 	public void run() {
-		Debug.print(TAG, "run", "Collecting broadcast Answer... ");
+		Debug.print(TAG, "run", "Collecting broadcast ("+type+") Answer... ");
 		
 		try {
 			Thread.sleep(threshold);

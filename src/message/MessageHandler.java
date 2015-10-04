@@ -29,7 +29,7 @@ public class MessageHandler extends Thread {
 	}
 
 	// 메세지 큐 감시 속도
-	private long latency = 500;
+	private long latency = 250;
 	
 	// 메세지 처리하는 부분
 	public void handle(Message msg)

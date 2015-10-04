@@ -51,6 +51,9 @@ public class AnswerHandler {
 		// 마지막으로 메세지 수신자의 경우, 자신의 IP주소는 갖고 있지 않을 것이기 때문에 수신자도 리스트에 추가한다.
 		items.add(msg.getFrom());
 		
+		// 자기자신은 제외한다.
+		items.remove(IpChecker.getPublicIP());
+		
 		// 디스크 파일 초기화
 		for (int i = 0; i < items.size(); i++) {
 			DiskInfo.getInstance().getClients().add(items.get(i));
@@ -91,6 +94,7 @@ public class AnswerHandler {
 		String[] v = m.split(": ");
 		
 		String metaFile = CSFileRecorder.getMetaFileNameFromPartFileName(v[0]);
+
 		int num = Integer.parseInt(v[0].substring(v[0].length() - 1));
 		CSFileRecorder.addLink(metaFile, v[1], num);
 		

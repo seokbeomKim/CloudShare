@@ -98,8 +98,6 @@ public class CmdParser {
 	    	}
 
 	    	else {
-	    		Debug.print(TAG, "handle", "Open disk file..");
-	    		Debug.print(TAG,  "handle", "arguments = " + arguments.size());
 	    		// Argument 체크. 아무 것도 입력하지 않았다면 error
 	    		if (arguments.size() == 0) {
 	    			throw new CmdLineException("arguments is empty");

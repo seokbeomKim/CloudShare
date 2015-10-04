@@ -93,13 +93,16 @@ public class Message {
 	}
 	
 	public void getInfo() {
-		System.out.println("Message info: "
+		String message = ">>> Message info: "
                 + "\ntype  = " + getType() 
                 + "\ndetail= " + getDetail()
 			    + "\nfrom  = " + getFrom()
 			    + "\nto    = " + getTo() 
 			    + "\nvalue = " + getValue()
-			    + "\nhide  = " + getHide());
+			    + "\nhide  = " + getHide()
+			    + "\n";
+		
+		System.out.println(message);
 	}
 	
 	public static enum WHAT {
@@ -133,14 +136,6 @@ public class Message {
 			}
 		}
 		return false;
-	}
-
-	/*
-	 * TODO IPC 메세지로의 변환
-	 */
-	public IPCMessage toIPCMessage() {
-	
-		return null;
 	}
 
 	public String getType() {

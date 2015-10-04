@@ -5,12 +5,8 @@ import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.net.Socket;
-import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-
-import com.sun.jndi.toolkit.url.Uri;
-import com.sun.org.apache.xerces.internal.util.URI;
 
 import debug.Debug;
 import disk.CloudShareInfo;
@@ -19,9 +15,7 @@ import disk.CloudShareInfo;
  * 파일 송수신에 쓰이는 클래스
  */
 public class FileReceiver extends Thread {
-	private final String TAG = "FileReceiver";
-	private final String TOKEN = "::__::";
-	private final int BUFFER_SIZE = 8192;
+	private final String TAG		= "FileReceiver";
 	private final int META_SIZE	= 512;
 
 	Socket s;
@@ -87,9 +81,9 @@ public class FileReceiver extends Thread {
 			
 			Debug.print(TAG, "run", "Start to receive bytes of file");
 			do {
-		    	bytesRead = bis.read(buffer, current, fsize - current);
+		    	bytesRead = bis.read(buffer, 0, fsize - current);
 		    	System.out.println("bytesRead : " + bytesRead);
-		    	bos.write(buffer, current, bytesRead);
+		    	bos.write(buffer, 0, bytesRead);
 		    	if(bytesRead >= 0) current += bytesRead;
 		    	System.out.println("*****"); 
 		    } while(bytesRead > 0);

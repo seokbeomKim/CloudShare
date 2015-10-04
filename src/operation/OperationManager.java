@@ -22,7 +22,6 @@ import org.json.simple.parser.JSONParser;
 import com.sun.corba.se.impl.orbutil.concurrent.Mutex;
 
 import debug.Debug;
-import disk.CloudShareInfo;
 import disk.DiskInfo;
 import message.IPCMessage;
 import message.Message;
@@ -43,26 +42,6 @@ import util.IpChecker;
  */
 public class OperationManager {
 	private final String TAG = "OperationManager";
-	
-	// IPC 통신 관련
-	private final int latency = 500;	// 0.5 seconds
-	private final int PortNum_out = 7788;
-	private final int PortNum_in = 7789;
-	public Mutex lock;
-	private Socket socket_in;
-	private Socket socket_out;
-	private ServerSocket listener;
-	private ServerSocket listener2;
-	
-	// 메세지 큐 (External Service로부터 수신된 메세지를 위한 큐)
-	private Queue<IPCMessage> msgQueue;
-	
-	// IPC-message 타입에 따른 메서드
-	HashMap<String, Method> ipcMsgHandler;
-
-	PrintWriter fd_out;
-	BufferedReader fd_in;	
-	
 	// 인스턴스 관련
 	private static OperationManager instance;
 	public static OperationManager getInstance() {
@@ -72,8 +51,28 @@ public class OperationManager {
 		return instance;
 	}
 	
+	// IPC 통신 관련
+	private final int latency = 500;	// 0.5 seconds
+	private final int PortNum_out = 7788;
+	private final int PortNum_in = 7789;
+	public		Mutex lock;
+	private		Socket socket_in;
+	private		Socket socket_out;
+	private		ServerSocket listener;
+	private		ServerSocket listener2;
+	
+	// 메세지 큐 (External Service로부터 수신된 메세지를 위한 큐)
+	private Queue<IPCMessage> msgQueue;
+	
+	// IPC-message 타입에 따른 핸들러 메서드
+	HashMap<String, Method> ipcMsgHandler;
+
+	PrintWriter		fd_out;
+	BufferedReader	fd_in;	
+
 	// 마운트 포인트
 	private String mountpoint;
+	private JSONArray arr;
 	
 	private OperationManager() {
 		setMsgQueue(new LinkedList<IPCMessage>());
@@ -95,9 +94,7 @@ public class OperationManager {
 		}
 	}
 	
-	/*
-	 * IPC Message Handler 정의부분
-	 */
+	// IPC Message Handler 정의부분
 	
 	/*
 	 * handle_reqCheckConnection
@@ -110,7 +107,7 @@ public class OperationManager {
 	}
 	public void _handle_reqCheckConnection(Message msg) {
 		Debug.print(TAG, "handle_reqCheckConnection", 
-				"Succeed to receive request_checkconnection from fuse-mounter. Send ACK message.");
+				"Received check-connection message from fuse-mounter. Send ACK message.");
 		// Java 프로그램과의 통신 테스트용이기 때문에 바로 ACK을 보낸다.
 		sendMessageToFuseMounter(new IPCMessage(
 				IPCMessage.ACK_CHECK_CONNECTION,
@@ -119,21 +116,21 @@ public class OperationManager {
 	}
 	
 	/*
-	 * handle_reqFileList
+	 * handle_reqFileList: 메타파일 리스트를 요청한다.
 	 * FUSE-mounter로부터 fileList 요청을 처리한다.
-	 * ExternalService에 브로드캐스팅 메세지 송신을 요청하고 ackFileList를 처리해주어야한다.
+	 * ExternalService에게 브로드캐스팅 메세지 송신을 요청하고 서비스에서 ackFileList를 처리해주어야한다.
 	 */
 	public static void handle_reqFileList(Message msg) {
 		getInstance()._handle_reqFileList(msg);
 	}
 	private void _handle_reqFileList(Message msg) {
-		Debug.print(TAG, "handle_reqFileList", "Succeed to receive request_FileList from fuse-mounter. Send ACK message.");
 		/* 
 		 * ExternalService에 filelist request 메세지 송신 요청
 		 * 후에, filelist에 대한 Answer을 받으면 ExternalService에서 일괄 처리한다.
 		 */
 		msg.setType(MESSAGE_TYPE.BROADCAST);
 		msg.setValue(IpChecker.getPublicIP());
+		// 브로드캐스팅용 메세지큐 할당 및 메세지 송신
 		ExternalService.getInstance().allocateBrcstAnswersQueue(msg.getDetail());
 		ExternalService.sendMessageToFamily(msg);
 	}
@@ -214,13 +211,12 @@ public class OperationManager {
 	 * 
 	 * 디스크 파일의 정보를 읽고 DiskInfo 객체를 초기화한다.
 	 */
-	@SuppressWarnings("null")
-	private void private_opendisk(String path) {
+	private void _opendisk(String path) {
 		DiskInfo diskInfo = DiskInfo.getInstance();
 		
-		Debug.print(TAG, "private_opendisk", "path = "+path);
 		JSONParser parser = new JSONParser();
 		Object obj;
+		
 		try { 
 			obj = parser.parse(new FileReader(new File(path)));
 	        JSONObject json_obj = (JSONObject) obj;
@@ -229,7 +225,7 @@ public class OperationManager {
 			diskInfo.setDiskname(json_obj.get("diskname").toString());
 			diskInfo.setOwner(json_obj.get("email").toString());
 			
-			JSONArray arr = (JSONArray)json_obj.get("clients");
+			arr = (JSONArray)json_obj.get("clients");
 			if (arr != null || arr.size() == 0) {
 				for( int i = 0; i < arr.size(); i++) {
 					diskInfo.getClients().add(arr.get(i).toString());
@@ -262,14 +258,14 @@ public class OperationManager {
 	 * 소켓 연결을 만들고 FUSE-mounter와 소켓 통신을 한다.
 	 */
 	private void doSocketConnection() {
-		System.out.println("Waiting for new connection...");
+		Debug.print(TAG, "doSocketConnection", "Waiting FUSE mounter...");
 		try {
 			listener = new ServerSocket(PortNum_in);
 			listener2 = new ServerSocket(PortNum_out);
 			socket_in = listener.accept();
 			socket_out = listener2.accept();
 			
-			System.out.println("Succeed to connect FUSE-mounter throughout SOCK");
+			Debug.print(TAG, "doSocketConnection", "Succeed to connect to FUSE-mounter...");
 			fd_out= new PrintWriter(socket_out.getOutputStream(), true);
 		    fd_in = new BufferedReader(
 		        new InputStreamReader(socket_in.getInputStream()));
@@ -368,44 +364,12 @@ public class OperationManager {
     	// 메세지가 완성되면 이를 핸들러로 보낸다.
     	if(fd_in.readLine().compareTo(Message.MESSAGE_TOKEN) == 0) {
     		try {
-    			Debug.print(TAG, "HandleMessageFromFuseMounter", "Call handler("+t+")");
-//    			request.getInfo();
+    			Debug.print(TAG, "HandleMessageFromFuseMounter", "Received message from Fuse mounter. Call handler("+t+")");
 				ipcMsgHandler.get(t).invoke(ipcMsgHandler.get(t), request);
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
     	}
-	}
-	/*
-	 * sendACKtoClient(deprecated)
-	 * - method for debugging
-	 * @param type 메세지 종류 (IPCMessage type)
-	 * @param aboutType 메세지 종류에 대한 메세지에 대한 ACK일 경우 true, 값에 대한 ACK일 경우 false
-	 * type값에 따라 적절한 ACK을 클라이언트에게 보낸다.
-	 */
-	@SuppressWarnings("unused")
-	private void sendACKtoClient(String type, boolean aboutType) {
-		Debug.print(TAG, "sendACKtoClient", "Send ACK to client");
-		if (aboutType) {
-			Debug.print(TAG, "sendACKtoClient", "Send ACK(" + IPCMessage.findAppropriateACKFromRequest(type) + ") to client");
-			fd_out.println(IPCMessage.findAppropriateACKFromRequest(type));
-		}
-		else {
-			// 값 수신에 대한 ACK
-			Debug.print(TAG, "sendACKtoClient", "Send ACK(" + IPCMessage.ACK_VALUE + ") to client");
-			fd_out.println(IPCMessage.ACK_VALUE);
-		}
-		fd_out.flush();
-	}
-
-	/*
-	 * handleMessage
-	 * TODO handleMessage 구현 
-	 * FUSE-Mounter가 보낸 메세지를 처리하는 부분이다.
-	 */
-	@SuppressWarnings("unused")
-	private void handleMessage(IPCMessage msg) {
-		Debug.print(TAG, "handleMessage", "Message : " + msg.getType() + ", " + msg.getValue());
 	}
 	
 	/*
@@ -416,28 +380,10 @@ public class OperationManager {
 	 * (ACK을 보내는 것이 아니다)
 	 */
 	public void sendMessageToFuseMounter(IPCMessage msg) {
-		Debug.print(TAG, "sendMessageToFuseMounter", "Message : " + msg.getType() + ", " + msg.getValue());
+		Debug.print(TAG, "sendMessageToFuseMounter", "Message(" + msg.getType() + ", " + msg.getValue() + ")");
 		String value = msg.getType() + "::" + msg.getValue();
 		fd_out.println(value);
 		fd_out.flush();
-	}
-	
-	/*
-	 * sendMessageToExternalService
-	 * ExternalService로 보내는 메세지의 경우, 특정 클라이언트에게 보내는 것이 아니기 때문에
-	 * broadcast 메세지로 처리한다.
-	 */
-	public void sendMessageToExternalService(IPCMessage msg) {
-		Debug.print(TAG, "sendMessageToExternalService", "Message : " + msg.getType() + ", " + msg.getValue());
-
-		String[] values = msg.getType().split("_");
-		ExternalService.sendMessageToFamily(new Message(
-				MESSAGE_TYPE.BROADCAST,
-				values[1],
-				null,
-				null,
-				msg.getValue()
-				));
 	}
 
 	/*
@@ -448,10 +394,10 @@ public class OperationManager {
 		Debug.print(TAG, "executeFUSEProgram", "EXecute cloudshare program");
 		try {
 			final ProcessBuilder pb = 
-					new ProcessBuilder("../CloudShare", "-f", "~/CloudShare");
+					new ProcessBuilder("/home/chaoxifer/workspace/CloudShareLinux/CloudShare", "-f", "~/CloudShare");
 			final Process p = pb.start();
 			assert p.getInputStream().read() == -1;
-			
+		
 		} catch (IOException e) {
 			e.printStackTrace();
 			Debug.error(TAG, "executeFUSEProgram", "Failed to execute FUSE based program");
@@ -462,8 +408,8 @@ public class OperationManager {
 	 * OpenDisk
 	 * 디스크 파일을 통해서 디스크 정보를 초기화하고 실제로 디스크를 마운트하는 부분
 	 */
-	public static void OpenDisk(String path) {
-		getInstance().private_opendisk(path);	// 디스크 정보 초기화 
+	public static void openDisk(String path) {
+		getInstance()._opendisk(path);	// 디스크 정보 초기화 
 	}
 	
 	/*
@@ -491,10 +437,10 @@ public class OperationManager {
 	 * 파라미터로 전해받은 파일 리스트를 통해서 disk를 업데이트한다.
 	 */
 	public static void updateDisk(List<String> v) {
-		getInstance().private_updateDisk(v);
+		getInstance()._updateDisk(v);
 	}
 
-	private void private_updateDisk(List<String> filelist) {
+	private void _updateDisk(List<String> filelist) {
 		IPCMessage msg = new IPCMessage(IPCMessage.REQUEST_REFRESH, filelist.toString());
 		sendMessageToFuseMounter(msg);
 	}

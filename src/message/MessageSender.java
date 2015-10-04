@@ -28,9 +28,9 @@ public class MessageSender extends Thread {
 	 * 대한 기록을 남긴다.
 	 */
 	private Message prevMsg;
-	private long latency = 1000;
+	private long latency = 500;
 	private long A_SECOND_IN_MILLISECOND = 1000;
-	private long ping_latency = 30 * A_SECOND_IN_MILLISECOND / latency;		// PING을 보내 클라이언트 체크하는 시간
+	private long ping_latency = 3 * A_SECOND_IN_MILLISECOND / latency;		// PING을 보내 클라이언트 체크하는 시간
 	private long count = 0;
 	
 	/*
@@ -53,7 +53,7 @@ public class MessageSender extends Thread {
 				if (w.checkError()) {
 					// 만약 해당 타겟의 클라이언트와의 접속 문제가 있는 경우
 					System.err.println("There might be a problem. Remove this client node from your client list.");
-					ExternalService.getClientList().remove(i);
+					ExternalService.getInstance().removeClientWithIndex(i);
 				}
 			} catch (IOException e) {
 				e.printStackTrace();

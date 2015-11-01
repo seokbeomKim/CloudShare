@@ -9,6 +9,8 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 
 import debug.Debug;
+import disk.DiskInfo;
+import server.ExternalService;
 import util.IpChecker;
 
 /*
@@ -38,9 +40,31 @@ public class DiskGenerator {
 		prepareJSON();
 		generateFile();
 	}
+	
+	/**
+	 * 현재의 디스크 정보를 바탕으로 디스크파일에 저장한다.
+	 */
+	public void saveDiskFile() {
+		setEmail(DiskInfo.getInstance().getOwner());
+		setDiskid(DiskInfo.getInstance().getDiskid());
+		setDiskname(DiskInfo.getInstance().getDiskname());
+		setMyip(DiskInfo.getInstance().getDiskip());
+		
+		String[] clist = new String[ExternalService.getClientList().size()];
+		for (int i = 0, j = 0; i < clist.length; i++) {
+			String c = ExternalService.getClientList().get(i).getIpAddr();
+			if (c.compareTo(getMyip()) != 0) {
+				clist[j++] = c; 
+			}
+		}
+		if (clist.toString() != null) 
+			setClient_ip(clist);
+		prepareJSON();
+		generateFile();
+	}
 
 	private void generateFile() {
-		final String pwd = System.getenv("PWD");
+		final String pwd = System.getenv("HOME");
 		try {
 			String diskfile_path = pwd + File.separator + diskname + ".csd";
 			Debug.print(TAG, "generateFile", "output file path = " + diskfile_path);
@@ -94,7 +118,8 @@ public class DiskGenerator {
 		JSONArray cl_list = new JSONArray();
 		if (client_ip != null) {
 			for (String cl : client_ip) {
-				cl_list.put(cl);
+				if (cl != null)
+					cl_list.put(cl);
 			}
 		}
 		o.put("clients", cl_list);

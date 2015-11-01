@@ -40,20 +40,24 @@ public class DiskOpener {
 			// (종료 이벤트 처리용)
 			Runtime.getRuntime().addShutdownHook(new ShutdownHooker());
 			
-			// OperationManager를 통해 OpenDisk를 호출한다.
-			// OperationManager가 메인 쓰레드로 실행되고 external service는 
-			// 다른 곳에서 실행되어야 한다.
+			// 디스크 정보 초기화
 			OperationManager.openDisk(env_path);
 			
 			// ExternalService를 실행한다.
 			// 여기서는 ExternalService 객체 초기화와 관련 쓰레드를 실행한다.
 			ExternalService.startService();
 		
+			// Fuse-mounter 실행
+			Thread fuse_mounter = new Thread(new Runnable() {
+				@Override
+				public void run() {
+					OperationManager.mount();
+				}
+			});
+			fuse_mounter.start();
+			
 			// 메인 쓰레드 실행 (FUSE-mounter와의 IPC 통신)
 			OperationManager.startOperator();
-			
-			// Fuse-mounter 실행 
-			// OperationManager.mount();
 
 			return true;
 		}

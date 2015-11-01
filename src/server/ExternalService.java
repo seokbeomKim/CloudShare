@@ -6,7 +6,9 @@ import java.lang.reflect.Method;
 import java.net.InetAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
+import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.Hashtable;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Queue;
@@ -25,7 +27,6 @@ import message.IPCMessage;
 import message.Message;
 import message.Message.MESSAGE_DETAIL;
 import message.Message.MESSAGE_TYPE;
-import message.Message.WHAT;
 import message.MessageHandler;
 import message.MessageReceiver;
 import message.MessageSender;
@@ -60,7 +61,7 @@ public class ExternalService {
 	// External Service threads
 	// 1. Socket Listener: 외부 클라이언트와의 통신을 위한 소켓 등록 및 관리 
 	private final int portnum_es = 7799;	
-	private List<Client> clientList;	// 클라이언트 IP 주소 리스트
+	private List<Client> clientList;
 	private Mutex mutexClientList;
 	private SocketListener sock_listener;		// Socket listener thread
 	private FileListener file_listener;			// Socket listener for file transfer 
@@ -77,13 +78,7 @@ public class ExternalService {
 	public HashMap<String, String> brcstFilePath;	
 	public HashMap<String, Method> answerMethods;
 	
-	// 나의 가족들
-	Client parent = null;
-	Client lChild = null;
-	Client rChild = null;
-	
 	private ExternalService() {
-		/* 초기화 부분 */
 		// 메세지 큐 초기화
 		mSendQueue = new LinkedList<>();
 		mRecvQueue = new LinkedList<>();
@@ -94,50 +89,51 @@ public class ExternalService {
 		brcstFilePath	 = new HashMap<String, String>();
 		answerMethods 	 = new HashMap<String, Method>();
 		
-		// 클라이언트 IP주소 리스트, 소켓 리스트 초기화
-		setMutexClientList(new Mutex());
 		clientList = new LinkedList<Client>();
-		for (int i = 0; i < DiskInfo.getInstance().getClients().size(); i++) {
-			clientList.add(new Client(DiskInfo.getInstance().getClients().get(i)));
-		}
+		mutexClientList = new Mutex();
 			
-		/* 실행 부분 */
-		// Socket Listener
 		if (sock_listener == null) {
 			// ExternalService간 통신 포트 7799
 			sock_listener = new SocketListener();	
 			sock_listener.start();
 		}
 		
-		// File transfer socket listener
 		if (file_listener == null) {
 			// File 전송 위한 포트 7798
 			file_listener = new FileListener();
 			file_listener.start();
 		}
 		
-		// 디스크의 생성자를 확인하여 자기 자신인지 아닌지 확인한다.
-		// 디스크 생성자가 아닌 경우에는 해당 클라이언트와의 통신을 위한 소켓을 생성하여 리스트에 추가한다.
-		// 중요한 것은 디스크 생성자라고 특별해지는 것이 없다. 다만 클라이언트 리스트에 디스크 생성자가 추가되느냐 아니냐가 달라질 뿐이다.
+		/*
+		 * 디스크파일은 프로그램이 실행되어 현재 네트워크에 접속되어 있는 노드로부터 클라이언트 정보를 받아와야한다.
+		 * 먼저, tryIpList에 디스크파일로부터 읽어들인 클라이언트들의 리스트를 담고, 이 중에서 연결가능한 노드를 
+		 * clientList에 담는다. 
+		 * 이 후에, clientList에 저장된 "연결가능한 노드"에게 클라이언트 리스트를 요청하여 clientList의 정보를
+		 * 업데이트한다.
+		 */
 		LinkedList<String> tryIpList = new LinkedList<String>();
+		boolean isCreator = false;
 		
 		try {
 			// 디스크 생성자 추가 
 			if (DiskInfo.getInstance().getDiskip().compareTo(IpChecker.getPublicIP()) != 0) {
 				// 디스크 생성자가 아닌 경우 클라이언트 리스트에 추가
-//				Debug.print(TAG, "ExternalService", "You are not disk creator.");
+				Debug.print(TAG, "ExternalService", "You are not disk creator.");
 				tryIpList.add(DiskInfo.getInstance().getDiskip());
 			}
 			else {
-//				Debug.print(TAG, "ExternalService", "You are disk creater.");
+				Debug.print(TAG, "ExternalService", "You are disk creater.");
+				isCreator = true;
 			}
 			
 			// 클라이언트 리스트로부터 추가 
 			for (int i = 0; i < DiskInfo.getInstance().getClients().size(); i++) {
 				tryIpList.add(DiskInfo.getInstance().getClients().get(i));
 			}
-		} catch (NullPointerException e) {
-			Debug.print(TAG, "ExternalService", "Please check your IP configuration.. Maybe you need to run virtualbox.");
+		}
+		catch (NullPointerException e) {
+			Debug.print(TAG, "ExternalService", 
+					"Please check your IP configuration.. Maybe you need to run virtualbox.");
 			e.printStackTrace();
 			System.exit(MyConstants.NEED_TO_RUN_VIRTUALBOX);
 		}
@@ -155,11 +151,20 @@ public class ExternalService {
 			catch (Exception e) {
 				// 소켓 연결에 실패한 경우
 				if (clientList.size() != 0) {
-					Debug.error(TAG, "createSocketFromClientList", "Failed to add socket : " + clientList.get(i).getIpAddr());
+					Debug.error(TAG, "createSocketFromClientList", 
+							"Failed to add socket : " + clientList.get(i).getIpAddr());
 				}
 				else {
 					// 이 경우에는 디스크 파일에 충분한 클라이언트 리스트가 없거나 현재 연결가능한 클라이언트가 없는 상태
-					Debug.error(TAG, "ExternalService", "No client is available to make connection. Program halted");
+					
+					// 디스크 파일 생성자인 경우에는 실행이 가능하다.
+					if (isCreator)
+					{
+						break;
+					}
+					
+					Debug.error(TAG, "ExternalService", 
+							"No client is available to make connection. Program halted");
 					System.exit(MyConstants.NO_CLIENT_AVAILABLE); 
 				}
 				
@@ -168,7 +173,7 @@ public class ExternalService {
 		}
 	}
 	
-	/*
+	/**
 	 * ExternalService가 생성될 때 쓰레드를 동시에 생성하면 쓰레드문제가 발생할 수 있기 때문에
 	 * 쓰레드 실행을 인스턴스가 충분히 생성된 뒤로 미룬다.
 	 */
@@ -195,79 +200,37 @@ public class ExternalService {
 			e.printStackTrace();
 		}
 		
-		// ExternalService는 util/DiskOpener에서 디스크 파일을 열었을 때 생성되어 실행된다. 
-		// 생성자에서는 디스크파일에 있는 호스트 및 클라이언트 목록의 IP들에게 노드 attach를 위한 
-		// 요청을 "순차적으로" 보내고 새로운 노드의 발견을 위해 전체 클라이언트들에게 새로운 노드의
-		// 생성을 알린다.		
-		// 최초, 클라이언트 리스트를 위해 리스트 요청을 한 뒤, 수신된 클라이언트 리스트를 통해 
-		// 새로운 접속 사실을 알린다.
-		
-		// 클라이언트 리스트를 요청한다. 클라이언트 리스트는 "ONLY" 오직 디스크 파일을 위해 존재하는 
-		// 데이터이다. 
+		// 현재 연결되어 있는 클라이언트 리스트 중 하나에게 자신이 갖고 있는 클라이언트 리스트를
+		// 요청한다. 이 때 요청받은 클라이언트 리스트를 가지고 clientList를 갱신하며 각각의 
+		// 클라이언트에 대한 소켓또한 이 때 초기화된다.
 		requestClientList();
-		
-		// 해당 클라이언트에게 노드 구성을 요청한다.
-		requestAttachMe();
 	}
 
-	/*
-	 * requestClientList
-	 * 
-	 * 현재 접속된 클라이언트들에게 새로운 클라이언트 리스트 요청 메세지를 보낸다.
-	 * 이 때, ClientList를 받는 이유는 디스크파일을 위한 클라이언트 리스트를 갱신하기 위함이다.
-	 * [중요] 절대로 네트워크 연결을 위한 것이 아니다.
+	/**
+	 * 현재 가지고 있는 클라이언트 리스트 정보를 통해 클라이언트들에게
+	 * 리스트 정보를 요청한다. 이 요청으로 전달받는 리스트로 초기화되며
+	 * 기존의 리스트 정보는 삭제된다.
 	 */
 	private void requestClientList() {
-//		Debug.print(TAG, "requestClientList", "You have " + getClientList().size() + " client(s).");
-		for (int i = 0; i < getClientList().size(); i++) {
-			// 모든 클라이언트에서 클라이언트 리스트가 동기화되어 있다고 가정한다.
-			Message request_client_list = new Message (
+		if (clientList.size() != 0) {
+			_send(new Message(
 					MESSAGE_TYPE.REQUEST,
 					MESSAGE_DETAIL.REQUEST_CLIENT_LIST,
 					IpChecker.getPublicIP(),
-					getClientList().get(i).getIpAddr(),
+					clientList.get(0).getIpAddr(),
 					null
-					);
-			_send(request_client_list);
-			break;
-		}
-	}
-	
-	/*
-	 * requestAttachMe
-	 * 
-	 * 클라이언트 리스트 (ip, clients in DiskInfo)를 통해서 적절한 네트워크 모델을 형성하도록 
-	 * (loop가 발생하지 않는) 클라이언트에게 요청한다.
-	 * 어떠한 다른 요청보다도 "우선적으로" 네트워크에 노드로써 구성이 완료되어야 한다.
-	 */
-	private void requestAttachMe() {
-		/*
-		 * 브로드캐스팅 메세지를 보냄과 동시에 ANSWER 메세지를 받기 위해
-		 * 새로운 큐를 할당받고 BroadcastAnswer Handler를 통해 일정시
-		 * 간 동안 메세지를 받은 후 처리한다. 
-		 */
-		allocateBrcstAnswersQueue(MESSAGE_DETAIL.BROADCAST_ATTACH_NEW_NODE);
-		
-		for (int i = 0; i < getClientList().size(); i++) {
-			Message request_attach_me = new Message(
-					MESSAGE_TYPE.BROADCAST,
-					MESSAGE_DETAIL.BROADCAST_ATTACH_NEW_NODE,
-					IpChecker.getPublicIP(),
-					getClientList().get(i).getIpAddr(),
-					IpChecker.getPublicIP()
-					);
-			Debug.print(TAG, "requestAttachMe", "target = " + getClientList().get(i).getIpAddr());
-			_send(request_attach_me);
+					));
 		}
 	}
 
-	/*
+	/**
 	 * receiveBrcstAnswers
 	 * 브로드캐스팅 메세지를 보낼 때 실행되는 메서드이다. 
 	 * 브로드캐스팅 후에 여러 클라이언트에서 메세지가 올 수 있기 때문에 정해진 시간 동안
 	 * 메세지를 수집한 후에 처리하는 방식으로 처리한다.
 	 * 이 메서드는 새로운 큐를 만들고 해당 큐를 일정시간 후에 처리할 수 있도록 쓰레드를 생
 	 * 성하는 역할을 한다.
+	 * @param broadcast_type 브로드캐스트 메세지 타입
 	 */
 	public void allocateBrcstAnswersQueue(String broadcast_type) {
 		Queue<Message> q = new LinkedList<Message>();
@@ -276,7 +239,25 @@ public class ExternalService {
 		BrcstAnsHandler bAnsHandler = new BrcstAnsHandler(q, broadcast_type);
 		bAnsHandler.start();
 	}
-
+	
+	/**
+	 * 모든 클라이언트들에게 메세지를 보낸다.
+	 * @param msg 보낼 메세지
+	 */
+	public void broadcastMessage(Message msg) {
+		for (int i = 0; i < getClientList().size(); i++) {
+			Message t = new Message(
+					msg.getType(),
+					msg.getDetail(),
+					IpChecker.getPublicIP(),
+					getClientList().get(i).getIpAddr(),
+					msg.getValue(),
+					msg.getHide()
+					);
+			_send(t);
+		}
+	}
+	
 	/*
 	 * getClientSocketWithIpAddr
 	 * 클라이언트 리스트로부터 IP주소가 일치하는 것을 찾아 해당 소켓을 리턴해준다.
@@ -313,7 +294,6 @@ public class ExternalService {
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}
-
 	}
 	
 	public static void send(Message msg) {
@@ -336,41 +316,28 @@ public class ExternalService {
 		this.clientList = list;
 	}
 	
-	// 클라이언트 리스트 관련 메서드
-	public void addNewClientWithIPAddr(String ip) {
-		clientList.add(new Client(ip));
+	/**
+	 * ip를 통해 새로운 클라이언트를 추가한다. 이 때, 소켓또한 새로 할당받는다.
+	 * @param ip 클라이언트 아이피 주소
+	 * @throws IOException IO Exception
+	 * @throws UnknownHostException 웹 서버의 DNS 설정이 되어있지 않을 때 발생 
+	 */
+	public void addNewClientWithIPAddr(String ip) 
+			throws UnknownHostException, IOException {
+		Socket s = new Socket(ip, getPortnum_es());
+		clientList.add(new Client(ip, s));
 	}
 	
 	public void removeClientWithIPAddr(String ip) {
 		for (int i = 0; i < clientList.size(); i++) {
 			Client c = clientList.get(i);
 			if (c.getIpAddr().compareTo(ip) == 0) {
-				// 해당 클라이언트가 parent, children 인지 확인하여 포인터 변경
-				if (ExternalService.getInstance().parent == c) {
-					ExternalService.getInstance().parent = null;
-				}
-				else if (ExternalService.getInstance().lChild == c) {
-					ExternalService.getInstance().lChild = null;
-				}
-				else if (ExternalService.getInstance().rChild == c) {
-					ExternalService.getInstance().rChild = null;
-				}
 				clientList.remove(i);
 			}
 		}
 	}
 	
 	public void removeClientWithIndex(int i) {
-		Client c = clientList.get(i);
-		if (ExternalService.getInstance().parent == c) {
-			ExternalService.getInstance().parent = null;
-		}
-		else if (ExternalService.getInstance().lChild == c) {
-			ExternalService.getInstance().lChild = null;
-		}
-		else if (ExternalService.getInstance().rChild == c) {
-			ExternalService.getInstance().rChild = null;
-		}
 		clientList.remove(i);
 	}
 
@@ -447,28 +414,6 @@ public class ExternalService {
 		this.mutexClientList = mutexClSockets;
 	}
 
-	// 메세지 전달 메서드
-	// 전달 시 from 값이 바뀐다.
-	public static void sendMessageToFamily(Message msg) {
-		msg.setFrom(IpChecker.getPublicIP());
-		for (int i = 0; i < getClientList().size(); i++) {
-			msg.setTo(getClientList().get(i).getIpAddr());
-			send(msg);
-		}
-	}
-	public static void sendMessageToParent(Message msg) {
-		msg.setFrom(IpChecker.getPublicIP());
-		msg.setTo(getInstance().parent.getIpAddr());
-		send(msg);
-	}	
-	public static void sendMessageToChildren(Message msg) {
-		msg.setFrom(IpChecker.getPublicIP());
-		msg.setTo(getInstance().lChild.getIpAddr());
-		send(msg);
-		msg.setTo(getInstance().rChild.getIpAddr());
-		send(msg);
-	}	
-
 	public static void addClient(Client client) throws InterruptedException {
 		getInstance()._addClient(client);
 	}
@@ -499,19 +444,6 @@ public class ExternalService {
 	}
 
 	/*
-	 * checkFamilyAvailable
-	 * 
-	 * 현재 parent, children으로써 새로운 노드를 가질 수 있는지 확인한다.
-	 * @return true는 가능, false는 불가능(자리없음)
-	 */
-	public boolean checkFamilyAvailable() {
-		if (parent != null && lChild != null && rChild != null) {
-			return false;
-		}
-		return true;
-	}
-
-	/*
 	 * disposeNewNode
 	 * 
 	 * 새로운 노드로써 parent, children으로 배치한다.
@@ -522,18 +454,6 @@ public class ExternalService {
 		Client c = getClientWithIpAddr(ipAddr);
 		if (c == null) {
 			c = connectTo(ipAddr);
-		}
-		
-		if (this.lChild == null) {
-			this.lChild = c;
-			pos = Message.LEFT_CHILD;
-		}
-		else if (this.rChild == null) {
-			this.rChild = c;
-			pos = Message.RIGHT_CHILD;
-		}
-		else {
-			Debug.error(TAG, "disposeNewNode", "There's nothing to do for new node.");
 		}
 		// 자리 할당 후 해당 노드에게 위치를 새로운 네트워크 관계를 알려준다.
 		Message answer = new Message(
@@ -582,8 +502,8 @@ public class ExternalService {
 		return null;
 	}
 
-	/*
-	 * 메세지의 ANSWER 타입에 따라 해당 큐에 메세지를 추가한다.
+	/**
+	 * 브로드캐스트메세지에 대한 ANSWER 타입에 따라 해당 큐에 메세지를 추가한다.
 	 */
 	public void receiveBroadcastAnswer(Message msg) {
 		Debug.print(TAG, "receiveBroadcastAnswer", "Add message to brcstAnswerQueue: " + msg.getDetail() + " from " + msg.getFrom());
@@ -663,6 +583,10 @@ public class ExternalService {
 		// 전달받은 메세지 값을 통해서 파일 리스트를 생성하고 현재 파일과 비교하여 요청한다.
 		
 		Message	msg	= null;
+		
+		// 파일리스트(Key), 파일 송신자(Value)
+		Hashtable<String, String> downloadList = new Hashtable<>();
+		
 		// 메세지로부터 받은 값을 바탕으로 한 메타파일 리스트
 		// 각각의 클라이언트가 갖고 있는 리스트
 		LinkedList<String> list 	= null;
@@ -670,40 +594,40 @@ public class ExternalService {
 		if (msgQ.size() == 0) {
 			// 아무런 대답이 없는 경우 할당된 큐를 처리하고 ACK을 보낸다.
 			brcstAnswerQueue.remove(MESSAGE_DETAIL.BROADCAST_FILE_LIST);
-			Debug.error(TAG, "handler_FileList", "There is nothing to do for filelist.");
+			Debug.error(TAG, "handler_FileList", "\nThere is nothing to do for filelist.");
 			OperationManager.getInstance().getMsgQueue().add(new IPCMessage(
 					IPCMessage.ACK_FILELIST, ""));
 			return;
 		}
 		for (int i = 0; i < msgQ.size(); i++) {
-			// 각각의 클라이언트에서 메세지 리스트를 수집하여 파일 다운로드를 준비한다.
-			// 모든 클라이언트는 동기화되어 있다고 전제한다. 때문에 여기서는 클라이언트들간의 파일 갯수를
-			// 단순히 비교하여 문제가 생기는지 확인한다.
 			msg		= msgQ.poll();
 			list	= MyConverter.convertStrToList(msg.getValue());
 
-			// 클라이언트로부터 받은 리스트에서 가지고 있는 것은 제외시킨다.
-			for (int j = list.size() - 1; j >= 0; j--) {
-				if (CloudShareInfo.getInstance().checkFileExist(list.get(j))) {
-					// 만약 파일이 있다면 다운로드 목록에서 제외시켜야 한다.
-					list.remove(i);
+			for (int j = 0; j < list.size(); j++) {
+				if (!CloudShareInfo.getInstance().checkFileExist(list.get(j))) {
+					/* 다운로드 받아야할 파일이 있는 경우, 해당 파일에 대한 정보를 리스트에 저장한다. */
+					downloadList.put(list.get(j), msg.getFrom());
 				}
 			}
+		}
+		
+		if (downloadList.size() != 0) {
+			Enumeration<String> k = downloadList.keys();
+			for (int i = 0; i < downloadList.size(); i++) {
+				String fname = k.nextElement();				// 파일 이름
+				String sender = downloadList.get(fname);	// 파일 송신자
 			
-			// 필요한 파일의 리스트를 만들어 해당 메세지 송신자에게 전송한다.
-			if (list.size() != 0) {
-				// 리스트 중 받을 것이 있는 것만 받는다.
 				send(new Message(
 						MESSAGE_TYPE.REQUEST,
-						MESSAGE_DETAIL.REQUEST_FILE_DOWNLOAD,
+						MESSAGE_DETAIL.REQUEST_FILE_LIST,
 						IpChecker.getPublicIP(),
-						msg.getFrom(),
-						list.toString()
+						sender,
+						fname
 						));
 			}
-			else {
-				Debug.print(TAG, "_handler_FileList", "Nothing to download from " + msg.getFrom());
-			}
+		}
+		else {
+			Debug.print(TAG, "_handler_FileList", "Nothing to download from " + msg.getFrom());
 		}
 		
 		// 메세지를 보낸 후, Fuse-mounter에게 FILE_LIST 요청에 대해서 ACK을 보낸다. 
@@ -749,9 +673,15 @@ public class ExternalService {
 			Debug.print(TAG, "_handle_Upload", "offset = " + offset + ", div_len = "+ div_len);
 			FilePartSender f_sender = new FilePartSender(msg.getFrom(), f.getPath(), offset, div_len, i);
 			f_sender.start();
+
+			// 각각 파일 전송이 끝날 때까지 기다린다.
+			try {
+				f_sender.join();
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
 			
 			// 상대방에게 공유링크를 요청한다.
-			// 상대방의 기대 행동은 공유링크를 보내주는 것이다.
 			send(new Message(
 					MESSAGE_TYPE.REQUEST,
 					MESSAGE_DETAIL.REQUEST_FILE_LINK,
@@ -786,32 +716,22 @@ public class ExternalService {
 		// 새로운 메타파일을 클라이언트들에게 보낸다.
 		Queue<Message> msgQ = brcstAnswerQueue.get(type);
 		
-		for (int i = 0; i < msgQ.size(); i++) {
+		Debug.print(TAG, "handler_NewMetaFile", "You have " + msgQ.size() + " meta file request(s).");
+		while( !msgQ.isEmpty() ) {
 			Message msg = msgQ.poll();
 			
 			FileSender f_sender = new FileSender(msg.getFrom(), meta_fname + ".cs");
 			f_sender.start();
-		}
-		
+			try {
+				f_sender.join();
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		}		
 		// answer 큐 정리
 		brcstAnswerQueue.remove(type);
 	}
-
-	/*
-	 * makeClientToFamily
-	 * 메세지로부터 값을 읽어 해당 클라이언트의 자리를 결정한다.
-	 */
-	public void makeClientToFamily(Message msg) {
-		Debug.print(TAG, "makeClientToFamily", "Message: This client will be " + msg.getValue() + " of " + msg.getFrom());
-		if (Message.is(WHAT.VALUE, msg.getValue(), Message.LEFT_CHILD) || 
-				Message.is(WHAT.VALUE, msg.getValue(), Message.RIGHT_CHILD)) {
-			parent = getClientWithIpAddr(msg.getFrom());
-		}
-		else {
-			Debug.error(TAG, "makeClientToFamily", "Need to implement more..about extra case");
-		}
-	}
-
+	
 	public FileListener getFile_listener() {
 		return file_listener;
 	}
@@ -819,7 +739,4 @@ public class ExternalService {
 	public void setFile_listener(FileListener file_listener) {
 		this.file_listener = file_listener;
 	}
-
-	
-
 }

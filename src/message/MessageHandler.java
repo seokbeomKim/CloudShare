@@ -89,7 +89,7 @@ public class MessageHandler extends Thread {
 		}
 		else if (Message.is(WHAT.DETAIL, msg.getDetail(), MESSAGE_DETAIL.ANSWER_MAKE_PAIR)) {
 			// 1:1 연결 요청
-			ansHandler.makePair(msg);
+			Debug.error(TAG, "handle_answer", "There is nothing to do with answer_make_pair message.");
 		}
 		else if (Message.is(WHAT.DETAIL, msg.getDetail(), MESSAGE_DETAIL.ANSWER_FILE_LIST)) {
 			ansHandler.fileList(msg);

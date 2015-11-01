@@ -1,5 +1,7 @@
 package message;
 
+import debug.Debug;
+
 /*
  * ExternalService용 메세지
  * 메세지 구성요소 : 누가, 누구에게, 무엇을, (언제)
@@ -93,16 +95,19 @@ public class Message {
 	}
 	
 	public void getInfo() {
-		String message = ">>> Message info: "
-                + "\ntype  = " + getType() 
-                + "\ndetail= " + getDetail()
-			    + "\nfrom  = " + getFrom()
-			    + "\nto    = " + getTo() 
-			    + "\nvalue = " + getValue()
-			    + "\nhide  = " + getHide()
-			    + "\n";
-		
-		System.out.println(message);
+		Debug.print("Message", "getInfo", 
+				getType() + ", " + getDetail() + ", " + getFrom() + ", " + 
+				getTo() + ", " + getValue() + ", " + getHide());
+//		String message = ">>> Message info: "
+//                + "\ntype  = " + getType() 
+//                + "\ndetail= " + getDetail()
+//			    + "\nfrom  = " + getFrom()
+//			    + "\nto    = " + getTo() 
+//			    + "\nvalue = " + getValue()
+//			    + "\nhide  = " + getHide()
+//			    + "\n";
+//		
+//		System.out.println(message);
 	}
 	
 	public static enum WHAT {

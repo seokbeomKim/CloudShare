@@ -134,6 +134,7 @@ public class CSFileRecorder {
 		// 가장 밑의 줄의 내용이 분할 파일의 마지막을 나타내는 링크이므로 이를 이용하여
 		// 링크를 완전하게 갖고 있는지 확인한다.
 		String mfPath = CloudShareInfo.getInstance().getCacheDirectory() + metaFileName;
+		Debug.print(TAG, "_checkCompleteMetaFile", "meta file path is " + mfPath);
 		File mf = new File(mfPath);
 		try {
 			BufferedReader r = new BufferedReader(new FileReader(mf));

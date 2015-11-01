@@ -1,5 +1,6 @@
 package message.handler;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.regex.PatternSyntaxException;
@@ -19,20 +20,23 @@ import util.IpChecker;
 public class AnswerHandler {
 	private final String TAG = "AnswerHandler";
 	
-	/* 
-	 * clientList
-	 * 
+
+	/**
 	 * 클라이언트 리스트 요청에 대한 응답을 받았을 때 처리하는 메서드이다.
-	 * 클라이언트 리스트는 단순히 디스크 파일을 위한 것이므로 DiskInfo에 저장한다.
+	 * DiskInfo 뿐만 아니라 ExternalService의 클라이언트 리스트도 초기화한다. 
+	 * @param msg 클라이언트로부터 전달받은 클라이언트 리스트 정보
 	 */
-	
 	public void clientList(Message msg) {
-		Debug.print(TAG, "clientList", "Refresh client list with message from " + msg.getFrom());
+		Debug.print(TAG, "clientList", 
+				"Refresh client list with message from " + msg.getFrom());
 		
 		DiskInfo.getInstance().getClients().clear();
 		
-		// 메세지 송신자를 추가하여 리스트에 추가한다.
-		LinkedList<String> items = new LinkedList<String>(Arrays.asList(msg.getValue().split("\\s*,\\s*")));
+		/* 파싱할 데이터 */
+		LinkedList<String> items = new LinkedList<String>(
+				Arrays.asList(msg.getValue().split("\\s*,\\s*")));
+		/* 괄호 없앤 후 추가될 리스트 */
+		LinkedList<String> cl_lst = new LinkedList<String>();
 		
 		for (int i = 0; i < items.size(); i++) {
 			String cl = items.get(i);
@@ -40,23 +44,42 @@ public class AnswerHandler {
 				try {
 					cl = cl.replace("[", "");
 					cl = cl.replace("]", "");
+					cl_lst.add(cl);
 				} catch (PatternSyntaxException ex) {
 					// 패턴 매칭이 되지 않은 경우 == 들어온 값이 비정상
-					System.err.println("Ignore: Error with parsing received data: Please check client list data from " + 
+					System.err.println("Ignore: Error with parsing received data: "
+							+ "Please check client list data from " + 
 							msg.getFrom());
 					System.err.println("Value is " + cl);
 				}
 			}
 		}
-		// 마지막으로 메세지 수신자의 경우, 자신의 IP주소는 갖고 있지 않을 것이기 때문에 수신자도 리스트에 추가한다.
-		items.add(msg.getFrom());
+		
+		// 마지막으로 메세지 수신자의 경우, 자신의 IP주소는 갖고 있지 않을 것이기 
+		// 때문에 수신자도 리스트에 추가한다.
+		cl_lst.add(msg.getFrom());
 		
 		// 자기자신은 제외한다.
-		items.remove(IpChecker.getPublicIP());
+		cl_lst.remove(IpChecker.getPublicIP());
 		
-		// 디스크 파일 초기화
-		for (int i = 0; i < items.size(); i++) {
-			DiskInfo.getInstance().getClients().add(items.get(i));
+		// 디스크 정보 초기화
+		for (int i = 0; i < cl_lst.size(); i++) {
+			DiskInfo.getInstance().getClients().add(cl_lst.get(i));
+		}
+		// 디스크 정보 저장
+		DiskInfo.getInstance().save();
+		
+		// DiskInfo를 초기화한 후에는 ExternalService의 클라이언트 리스트를 초기화한다.
+		// 리스트 송신자에 대한 소켓은 이미 저장되어 있으므로 추가될 대상에서 제외시킨다.
+		cl_lst.remove(msg.getFrom());
+		for (int i = 0; i < cl_lst.size(); i++) {
+			try {
+				Debug.print(TAG, "clientList", "Add new client: " + cl_lst.get(i));
+				ExternalService.getInstance().addNewClientWithIPAddr(cl_lst.get(i));
+			} catch (IOException e) {
+				Debug.print(TAG, "clientList", "Failed to add new client(" + cl_lst.get(i) + ")");
+				e.printStackTrace();
+			}
 		}
 	}
 
@@ -69,10 +92,6 @@ public class AnswerHandler {
 	 */
 	public void attachNewNode(Message msg) {
 		ExternalService.getInstance().receiveBroadcastAnswer(msg);
-	}
-
-	public void makePair(Message msg) {
-		ExternalService.getInstance().makeClientToFamily(msg);
 	}
 
 	public void fileList(Message msg) {
@@ -103,7 +122,8 @@ public class AnswerHandler {
 		// 이 때 MESSAGE_DETAIL 부분에 파일명을 붙여서 보낸다. 
 		if (CSFileRecorder.checkCompletedMetaFile(metaFile + ".cs")) {
 			ExternalService.getInstance().allocateBrcstAnswersQueue(MESSAGE_DETAIL.BROADCAST_NEW_METAFILE + ":" + metaFile);
-			ExternalService.sendMessageToFamily(new Message(
+			Debug.print(TAG, "fileLink", "Notify new metafile(" + metaFile + ") to other clients....");
+			ExternalService.getInstance().broadcastMessage(new Message(
 					MESSAGE_TYPE.BROADCAST,
 					MESSAGE_DETAIL.BROADCAST_NEW_METAFILE,
 					IpChecker.getPublicIP(),

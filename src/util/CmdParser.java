@@ -1,8 +1,4 @@
 package util;
-/*
- * CmdParser
- * 프로그램 실행시 사용자가 입력한 Argument에 따라서 명령을 처리한다.
- */
 import java.util.ArrayList;
 import java.util.List;
 
@@ -13,8 +9,9 @@ import org.kohsuke.args4j.Option;
 
 import debug.Debug;
 
-/*
- * 사용자로부터 받은 커맨드 처리 클래스 
+/**
+ * 프로그램 실행시 입력받는 Arguments 처리 클래스
+ * @author Sukbeom Kim	
  */
 public class CmdParser {
 	@SuppressWarnings("unused")
@@ -69,24 +66,28 @@ public class CmdParser {
 	    	}
 	    	
 	    	else if (debug) {
-	    		// 디버그에서
 	    		Debug.print(TAG, "handle", "Debug mode: " + arguments.get(1));
+	    		/* 1. 파일 전송 테스트 */
 	    		if (arguments.get(1).compareTo("filetransfer") == 0) {
-	    			// file transfer 테스트 
 	    			Debug.print(TAG, "handle", "Debug: filetransfer");
 //	    			FileSender sender = new FileSender("192.168.56.1", "test.cs", 0, 0);
 //	    			sender.start();
 	    		}
-	    		else if (arguments.get(1).compareTo("add_slink") == 0) {
-	    			// file transfer 테스트 
+	    		
+	    		/* 2. 파일 전송 테스트 버전 2 */
+	    		else if (arguments.get(1).compareTo("add_slink") == 0) { 
 	    			Debug.print(TAG, "handle", "Debug: add share link to meta file");
 	    			CSFileRecorder.addLink("TEST_UPLOADFILE", "testlin", 0);
 //	    			FileSender sender = new FileSender("192.168.56.1", "test.cs", 0, 0);
 //	    			sender.start();
 	    		}
+	    		
+	    		/* 3. 메타파일 검사 테스트 */
 	    		else if (arguments.get(1).compareTo("check_metafile") == 0) {
 	    			CSFileRecorder.checkCompletedMetaFile("TEST_UPLOADFILE.cs");
 	    		}
+	    		
+	    		/* 4. 파일 다운로드 테스트 */
 	    		else if (arguments.get(1).compareTo("download_file") == 0) {
 	    			try {
 //						FileDownloaderFromURL.downloadFile("http://me2.do/xm81SLTf");
@@ -97,16 +98,17 @@ public class CmdParser {
 	    		}
 	    	}
 
+	    	// 특별한 인자가 없는 경우에는 프로그램을 진행한다.
 	    	else {
-	    		// Argument 체크. 아무 것도 입력하지 않았다면 error
 	    		if (arguments.size() == 0) {
 	    			throw new CmdLineException("arguments is empty");
 	    		}
 	    		
-	    		// 파일 생성하는 경우가 아니면서 Argument가 존재한다면, 디스크 파일 열기로 처리한다.
 	    		DiskOpener opener = new DiskOpener(); 
+	    		/*
+	    		 * 디스크 파일을 열고 프로그램을 시작한다. 만약 파일이 존재하지 않는다면 에러 메세지를 출력한다. 
+	    		 */
 	    		if (!opener.diskOpen(arguments.get(0))) {
-	    			// 파일 열기가 실패했을 경우 
 	    			System.err.println("File does not exist: " + arguments.get(0));
 	    			return;
 	    		}

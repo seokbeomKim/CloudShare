@@ -81,9 +81,9 @@ public class CloudShareInfo {
 		}
 	}
 
-	/*
-	 * refreshFileList
-	 * 파일 리스트 갱신
+	/**
+	 * 기존의 파일리스트를 초기화하고 현재 메타 디렉토리를 다시 검색하여 
+	 * 파일리스트를 갱신한다.
 	 */
 	private void refreshFileList() {
 //		Debug.print(TAG, "refreshFileList", "mount point is " + this.mntPoint);

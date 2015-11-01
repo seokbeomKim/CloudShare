@@ -5,6 +5,7 @@ import java.net.ServerSocket;
 import java.net.Socket;
 
 import debug.Debug;
+import disk.DiskInfo;
 
 /*
  * SocketListener
@@ -44,7 +45,6 @@ public class SocketListener extends Thread {
 				try {
 					addClientSocket(s.accept());
 					Debug.print(TAG, "run", "Allocate new socket instance for new client.");
-
 				} catch (Exception e) {
 					e.getStackTrace();
 				}
@@ -64,6 +64,8 @@ public class SocketListener extends Thread {
 		try {
 			ExternalService.addClient(
 					new Client(s.getInetAddress().getHostAddress(), s));
+			// 클라이언트 추가 후에 디스크정보 저장
+			DiskInfo.getInstance().save();
 		} catch (InterruptedException e) {
 			e.printStackTrace();
 		}

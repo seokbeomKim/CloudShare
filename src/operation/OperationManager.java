@@ -37,7 +37,7 @@ import util.IpChecker;
  * FUSE_Program(written in C) <---------> Operation Manager <---------> JAVA External Service
  * 
  * Operation Manager는 두 개의 독립적인 프로세스간의 통신을 담당하며 이를 위해
- * Socket 통신을 기반으로 IPC를 한다.
+ * Socket 통신을 기반으로 IPC를 한다. (메세지 전달 역할)
  * 
  */
 public class OperationManager {
@@ -60,6 +60,8 @@ public class OperationManager {
 	private		Socket socket_out;
 	private		ServerSocket listener;
 	private		ServerSocket listener2;
+	
+	Process fuse_wrapper_process;
 	
 	// 메세지 큐 (External Service로부터 수신된 메세지를 위한 큐)
 	private Queue<IPCMessage> msgQueue;
@@ -132,7 +134,7 @@ public class OperationManager {
 		msg.setValue(IpChecker.getPublicIP());
 		// 브로드캐스팅용 메세지큐 할당 및 메세지 송신
 		ExternalService.getInstance().allocateBrcstAnswersQueue(msg.getDetail());
-		ExternalService.sendMessageToFamily(msg);
+		ExternalService.getInstance().broadcastMessage(msg);
 	}
 	
 	/*
@@ -140,9 +142,19 @@ public class OperationManager {
 	 * FUSE-mounter로부터의 download 요청을 처리한다.
 	 */
 	public static void handle_reqDownload(Message msg) {
-		getInstance()._handle_reqDownload(msg);
+		try {
+			getInstance()._handle_reqDownload(msg);
+		}
+		catch (ArrayIndexOutOfBoundsException e) {
+			/*
+			 * cs 파일이 제대로 되어있는 형식이 아닌 경우 발생
+			 */
+			Debug.error("OperationManager", "handle_reqDownload", 
+					"Error occur when trying to download the file.. maybe the file is corrupted.");
+			return;
+		}
 	}
-	private void _handle_reqDownload(Message msg) {
+	private void _handle_reqDownload(Message msg) throws ArrayIndexOutOfBoundsException {
 		Debug.print(TAG, "_handle_reqDownload", "Request download..");
 		msg.getInfo();
 
@@ -203,13 +215,11 @@ public class OperationManager {
 		msg.setValue(IpChecker.getPublicIP());
 		
 		ExternalService.getInstance().allocateBrcstAnswersQueue(msg.getDetail());
-		ExternalService.sendMessageToFamily(msg);
+		ExternalService.getInstance().broadcastMessage(msg);
 	}
 
-	/*
-	 * private_opendisk
-	 * 
-	 * 디스크 파일의 정보를 읽고 DiskInfo 객체를 초기화한다.
+	/**
+	 * _opendisk: 디스크 파일의 정보를 읽고 DiskInfo 객체를 초기화한다.
 	 */
 	private void _opendisk(String path) {
 		DiskInfo diskInfo = DiskInfo.getInstance();
@@ -386,18 +396,19 @@ public class OperationManager {
 		fd_out.flush();
 	}
 
-	/*
-	 * executeFUSEProgram
-	 * C로 구현된 프로그램을 실행하는 코드
+	/**
+	 * CloudShare FUSE Wrapper 프로그램 실행하는 메서드
 	 */
 	private void executeFUSEProgram() {
-		Debug.print(TAG, "executeFUSEProgram", "EXecute cloudshare program");
+		Debug.print(TAG, "executeFUSEProgram", "Execute cloudshare fuse wrapper program...");
 		try {
+			String homedir = System.getenv("HOME");
 			final ProcessBuilder pb = 
-					new ProcessBuilder("/home/chaoxifer/workspace/CloudShareLinux/CloudShare", "-f", "~/CloudShare");
-			final Process p = pb.start();
-			assert p.getInputStream().read() == -1;
-		
+					new ProcessBuilder(
+							homedir + File.separator + "workspace/CloudShareLinux/CloudShare", 
+							"-f", 
+							homedir + File.separator + "CloudShare");
+			fuse_wrapper_process = pb.start();
 		} catch (IOException e) {
 			e.printStackTrace();
 			Debug.error(TAG, "executeFUSEProgram", "Failed to execute FUSE based program");
@@ -459,6 +470,23 @@ public class OperationManager {
 
 	public void setMsgQueue(Queue<IPCMessage> msgQueue) {
 		this.msgQueue = msgQueue;
+	}
+
+	/**
+	 * FUSE_Wrapper (C based) 프로그램을 종료한다.
+	 * ShutdownHooker에서 프로그램이 종료될 시에 호출되며 함수를 통해 
+	 * 프로그램을 정상 종료시킨다.
+	 */
+	public void closeFUSEProgram() {
+		try {
+			if (fuse_wrapper_process.isAlive())
+				fuse_wrapper_process.destroy();
+		}
+		catch (NullPointerException e) {
+			// Thread가 초기화되어 있지 않은 상태에서 프로그램이 종료되는 경우
+			Debug.error(TAG, "closeFUSEProgram", 
+					"Failed to close FUSE Program. No such a program is running.");
+		}
 	}
 	
 }

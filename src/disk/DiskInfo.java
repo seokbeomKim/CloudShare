@@ -3,6 +3,9 @@ package disk;
 import java.util.LinkedList;
 import java.util.List;
 
+import util.DiskGenerator;
+import util.DiskOpener;
+
 /*
  * 디스크의 정보 관리 클래스
  */
@@ -84,5 +87,13 @@ public class DiskInfo {
 
 	public void setDiskpath(String diskpath) {
 		this.diskpath = diskpath;
+	}
+
+	/**
+	 * 현재의 디스크 정보를 파일로 저장한다.
+	 */
+	public void save() {
+		DiskGenerator generator = new DiskGenerator();
+		generator.saveDiskFile();
 	}
 }

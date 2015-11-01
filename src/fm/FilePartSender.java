@@ -82,6 +82,8 @@ public class FilePartSender extends Thread {
 	        }
 
 	        bis.skip(offset);
+	        
+	        offset = 0;
 	        Debug.print(TAG, "run", "offset = " + offset + ", len = " + len + ", try_size = " + try_size);
 	        while ((bytesRead = bis.read(mybytearray, 0, try_size)) > 0) {
                 bos.write(mybytearray, 0, bytesRead);
@@ -93,6 +95,7 @@ public class FilePartSender extends Thread {
                 }
                 if (offset + BUFFER_SIZE > len) {
     	        	try_size = (int)(len - offset);
+    		        Debug.print(TAG, "run", "offset = " + offset + ", len = " + len + ", try_size = " + try_size);
     	        }
             }
             bos.flush();

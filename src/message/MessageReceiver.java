@@ -7,6 +7,7 @@ import java.util.LinkedList;
 
 import debug.Debug;
 import debug.MyConstants;
+import disk.DiskInfo;
 import message.Message.MESSAGE_TYPE;
 import server.ExternalService;
 
@@ -106,6 +107,7 @@ public class MessageReceiver extends Thread {
 					System.err.println("Failed to refresh inputstream with i = " + i);
 					// 클라이언트 소켓 리스트에 문제가 생긴 것이므로 처리한다.
 					ExternalService.getClientList().remove(i);
+					DiskInfo.getInstance().save();
 				} catch (NullPointerException e2) {
 					System.err.println("Null exception? Do you have client socket? ");
 					System.exit(MyConstants.NULL_CLIENT_SOCKET_EXCEPTION);

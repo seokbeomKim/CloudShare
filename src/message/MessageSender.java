@@ -5,6 +5,7 @@ import java.io.PrintWriter;
 import java.net.Socket;
 
 import debug.Debug;
+import disk.DiskInfo;
 import message.Message.MESSAGE_TYPE;
 import server.ExternalService;
 
@@ -101,6 +102,12 @@ public class MessageSender extends Thread {
 	private void do_send(Message msg) {
 		String target = (String)msg.getTo();
 		msg.getInfo();
+		
+		if (msg.getTo() == null) {
+			Debug.error(TAG, "do_send", 
+					"Destination is null. Please check the message structure.");
+		}
+		
 		Socket s = ExternalService.getClientSocketWithIpAddr(target);
 		boolean temp = false;
 		if (s == null) {

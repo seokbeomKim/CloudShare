@@ -68,6 +68,7 @@ public class RequestHandler {
 			f_sender.start();	
 		}
 	}
+	
 	public void fileDownload(Message msg) {
 		LinkedList<String> fileList = MyConverter.convertStrToList(msg.getValue());
 		

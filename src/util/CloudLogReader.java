@@ -31,7 +31,18 @@ public class CloudLogReader {
 	 * @param fname: 파일 이름(분할된 파일 이름 .x 이어야한다.)
 	 */
 	public static String getLink(String fname) {
-		return getInstance()._getLink(fname);
+		String r;
+		
+		// 공유링크를 받을 때까지 대기 
+		while ((r = getInstance()._getLink(fname)) == null) {
+			try {
+				Thread.sleep(1000);
+				Debug.print("CloudLogReader", "getLink", "Waiting for shared link for " + fname);
+			} catch (InterruptedException e) {
+				e.printStackTrace();
+			}
+		};
+		return r;
 	}
 
 	private String _getLink(String fname) {
@@ -47,7 +58,9 @@ public class CloudLogReader {
 				String[] v = s.split(": ");
 				System.out.println("v[0] = " + v[0] + ", v[1] = " + v[1]);
 				File p = new File(v[0]);
-				if (p.getName().compareTo(fname) == 0) {
+				Debug.print(TAG, "_getLink", 
+						"Compare filename from logfile: fname = " + fname + ", p.getName = " + p.getName());
+				if (fname.equals(p.getName())) {
 					br.close();
 					return v[1];
 				}

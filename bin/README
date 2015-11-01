@@ -1,13 +1,13 @@
 ==============================================================
 CloudShare - Overview
 ==============================================================
-README 
+README
 	작성자: 김석범 
 	이메일: chaoxifer@gmail.com, sbkim@thealphalabs.com
 	
 2. 프로그램 구성
-	- IPC 통신 모듈(FUSE mounter와 통신) - Operator
-	- External Service(외부 클라이언트와 통신) - External Service
+	- Deliverer: External Service와 CloudShareLinux(C based) 프로그램과의 메세지 전달을 담당하는 부분 
+	- External Service: 타 클라이언트와의 통신을 담당하는 부분
 	
 3. 동작 시나리오
 	Main thread: Operation Manager
@@ -36,13 +36,4 @@ README
 	7788, 7789: IPC
 	7799: ExternalService 메세지 교환
 	7798: 파일 전송
-	
-==============================================================
-CloudShare
-==============================================================
-1. 설명
-클라이언트는 두 종류로 나뉘어진다. Parent와 Children으로 구분
-각 클라이언트 노드는 자신의 기준으로 보았을 때, 하나의 Parent 클라이언트 노드와 
-2개의 Children 노드를 갖는다. External Service는 외부와 통신하는 서비스로써
-이들 노드를 관리하며 메세지 송수신시에 이들 노드를 활용하여 메세지를 주고 받는다.
 

@@ -39,6 +39,7 @@ public class Message {
 		public static final String BROADCAST_NEW_METAFILE 	= "NewMetaFile";
 		
 		public static final String OPERATION_REFRESH_STREAM	= "RefreshStream";
+		public static final String BROADCAST_FILE_UNLINK = "FileUnlink";
 	};
 	
 	public static final String MESSAGE_TOKEN = "::__::";

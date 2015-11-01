@@ -5,7 +5,6 @@ import java.io.PrintWriter;
 import java.net.Socket;
 
 import debug.Debug;
-import disk.DiskInfo;
 import message.Message.MESSAGE_TYPE;
 import server.ExternalService;
 

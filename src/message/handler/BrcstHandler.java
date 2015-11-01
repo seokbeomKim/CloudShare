@@ -1,7 +1,11 @@
 package message.handler;
 
+import java.io.File;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 
+import debug.Debug;
 import disk.CloudShareInfo;
 import message.Message;
 import message.Message.MESSAGE_DETAIL;
@@ -83,6 +87,19 @@ public class BrcstHandler {
 				msg.getHide()
 				);
 		ExternalService.send(ans);	
+	}
+
+	/**
+	 * 메타파일 삭제 요청 처리 
+	 * @param msg 삭제할 파일의 경로
+	 */
+	public void fileUnlink(Message msg) {
+		Debug.print("BrcstHandler", "fileUnlink", "msg's value is = " + msg.getValue());
+		
+		Path t = Paths.get(msg.getValue());
+		String target = CloudShareInfo.getInstance().getCacheDirectory() + t.getFileName();
+		File f = new File(target);
+		f.delete();
 	}
 
 }

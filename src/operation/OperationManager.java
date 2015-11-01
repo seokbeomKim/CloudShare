@@ -91,6 +91,8 @@ public class OperationManager {
 					OperationManager.class.getMethod("handle_reqDownload", Message.class));
 			ipcMsgHandler.put(IPCMessage.REQUEST_UPLOAD, 
 					OperationManager.class.getMethod("handle_reqUpload", Message.class));
+			ipcMsgHandler.put(IPCMessage.REQUEST_FILEUNLINK, 
+					OperationManager.class.getMethod("handle_reqFileUnlink", Message.class));
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -117,6 +119,18 @@ public class OperationManager {
 				));
 	}
 	
+	public static void handle_reqFileUnlink(Message msg) {
+		getInstance()._handle_reqFileUnlink(msg);
+	}
+	
+	private void _handle_reqFileUnlink(Message msg) {
+		Debug.print(TAG, "handle_reqFileUnlink", 
+				"Received request-fileunlink message from fuse-mounter");
+		msg.setType(MESSAGE_TYPE.BROADCAST);
+		msg.setDetail(MESSAGE_DETAIL.BROADCAST_FILE_UNLINK);
+		ExternalService.getInstance().broadcastMessage(msg);
+	}
+
 	/*
 	 * handle_reqFileList: 메타파일 리스트를 요청한다.
 	 * FUSE-mounter로부터 fileList 요청을 처리한다.

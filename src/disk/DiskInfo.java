@@ -4,7 +4,6 @@ import java.util.LinkedList;
 import java.util.List;
 
 import util.DiskGenerator;
-import util.DiskOpener;
 
 /*
  * 디스크의 정보 관리 클래스
